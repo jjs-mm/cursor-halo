@@ -129,10 +129,11 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
+      - name: CI dependency fallback tests
+        run: python3 linux/containers/test-install-ci-dependencies.py
       - name: Native build and X11 test dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y cmake g++ pkg-config libgtk-3-dev libx11-dev libxi-dev libxfixes-dev libxtst-dev libxext-dev librsvg2-common xvfb xauth xdotool openbox xcompmgr dbus-x11 python3
+          sudo bash linux/containers/install-ci-dependencies.sh cmake g++ pkg-config libgtk-3-dev libx11-dev libxi-dev libxfixes-dev libxtst-dev libxext-dev librsvg2-common xvfb xauth xdotool openbox xcompmgr dbus-x11 python3
       - name: Native build and core tests
         run: ./linux/scripts/build.sh
       - name: Native overlay, input, shortcut, and focus smoke
@@ -178,8 +179,7 @@ jobs:
           persist-credentials: false
       - name: GNOME Shell test dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y gnome-shell gnome-shell-extension-prefs dbus-x11 xwayland gsettings-desktop-schemas libgl1-mesa-dri mesa-utils python3
+          sudo bash linux/containers/install-ci-dependencies.sh gnome-shell gnome-shell-extension-prefs dbus-x11 xwayland gsettings-desktop-schemas libgl1-mesa-dri mesa-utils python3
       - name: Verify and record GNOME 46 environment
         run: python3 linux/scripts/record-gnome-environment.py 46 .build/smoke/gnome-${{ matrix.arch }}/environment.json
       - name: GNOME settings and behavior tests
