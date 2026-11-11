@@ -9,7 +9,8 @@ This is a community-maintained project without a guaranteed response time. The l
 - Cursor Halo needs no account or network connection to work and sends no telemetry.
 - It observes pointer movement and mouse clicks to draw feedback. It does not record them or inspect the contents of other apps.
 - Global shortcuts register specific combinations. The app does not collect typed text.
-- Settings and optional login startup are per user. Windows installation does not require administrator access.
+- Settings and optional login startup are per user. Windows and Linux user installation do not require administrator access. Linux system dependencies are installed by the distribution's package manager.
+- Linux X11 uses the existing desktop connection, without direct access to `/dev/input` or elevated input permissions. GNOME support runs as a Shell extension and follows GNOME's extension enable/disable lifecycle.
 - It does not draw over Windows secure desktops, permission prompts, or the sign-in screen. Do not weaken system protections to change that.
 
 Release archives are accompanied by SHA-256 checksums. Checksums detect changes relative to the published values; they do not replace platform signing or establish independent trust. macOS builds are ad hoc signed unless a release explicitly states otherwise. Windows builds are unsigned unless stated otherwise. Developer ID notarization and Authenticode signing require maintainer-owned credentials and are not configured in this repository.

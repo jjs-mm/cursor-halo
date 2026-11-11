@@ -25,9 +25,17 @@ Native Windows smoke check, on Windows only:
 
 The native smoke test runs isolated checks without changing real preferences or launch-at-login entries. CI builds and tests on native runners; see the workflow files for the current architecture matrix.
 
+Linux core and installer checks:
+
+```sh
+./linux/scripts/test.sh
+```
+
+Native Linux integration requires a composited X11 display. CI creates an isolated Xvfb/Openbox/xcompmgr session and uses a temporary HOME/XDG environment. The separate GNOME extension must be tested inside its supported GNOME Shell version, including pointer input over a native Wayland client. A GTK app running under XWayland does not establish GNOME Wayland compatibility. See [Linux documentation](linux.md) and the CI job commands.
+
 ## Manual acceptance
 
-Record the OS version, architecture, display arrangement/scaling, app build, and result for each check.
+Record the OS version, architecture, display arrangement/scaling, app build, and result for each check. On Linux, also record the distribution, desktop/Shell version, compositor, and X11/Wayland session type.
 
 - Start once and start a second copy: settings should be discoverable and only one halo should remain.
 - Move and drag across every display edge, including monitors above or left of the main screen and mixed scaling. The halo stays centered; pulse positions remain accurate.

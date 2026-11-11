@@ -1,10 +1,10 @@
 # Contributing
 
-Cursor Halo is a small native pointer-highlighting utility for macOS and Windows. Keep changes focused on reliable pointer visibility, accessible controls, and low idle overhead.
+Cursor Halo is a small native pointer-highlighting utility for macOS, Windows, and supported Linux desktops. Keep changes focused on reliable pointer visibility, accessible controls, and low idle overhead.
 
 ## Getting started
 
-See [README.md](README.md) for build commands. The macOS app uses Swift/AppKit/SwiftUI; the Windows app uses C#/.NET and native Windows APIs. Changes to one platform should preserve the [shared behavior contract](docs/behavior.md) or explain a deliberate platform difference.
+See [README.md](README.md) for build commands. The macOS app uses Swift/AppKit/SwiftUI; Windows uses C#/.NET and native Windows APIs; Linux X11 uses C++/GTK 3; the GNOME extension uses GJS and compositor APIs. Changes to one platform should preserve the [shared behavior contract](docs/behavior.md) or explain a deliberate platform difference.
 
 Before opening a pull request:
 
@@ -14,7 +14,7 @@ Before opening a pull request:
 4. For overlay changes, check clicking and typing through the halo, display scaling and edges, fullscreen applications, pause/resume, and cleanup on exit. Follow [the manual checklist](docs/testing.md).
 5. Keep generated builds, local settings, signing credentials, account identifiers, and personal file paths out of commits.
 
-Pull requests run native CI for both operating systems. No third-party runtime dependency should be added without explaining its need, license, update plan, and impact on distribution size.
+Pull requests run the native CI matrix. Linux X11 and GNOME are separate integration targets: a green X11 test does not establish Wayland compatibility. No third-party runtime dependency should be added without explaining its need, license, update plan, and impact on distribution size.
 
 ## Scope
 

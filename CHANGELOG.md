@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 — Linux preview
+
+- Added a native GTK app for composited Linux X11 sessions on x64 and ARM64, including appearance settings, click feedback, global shortcuts, and per-user login launch.
+- Added a separate GNOME Shell 46 extension for native Wayland sessions, with compositor overlays, panel controls, preferences, and a toggle shortcut.
+- Added Linux build, native integration, and isolated installation/update checks, plus archives and checksums.
+- Documented Linux dependencies, desktop compatibility, and manual acceptance limits. Other Wayland desktops are not supported by this preview.
+
 ## 0.3.0 — First public development release
 
 - Added a native Windows tray application with configurable cursor highlighting, click feedback, global shortcuts, local settings, and optional per-user login launch.

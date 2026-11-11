@@ -1,13 +1,14 @@
 # Cursor Halo
 
-**Make your pointer easy to follow.** A native menu-bar app for macOS and tray app for Windows, with a customizable halo and click feedback.
+**Make your pointer easy to follow.** Native cursor highlighting for macOS, Windows, and supported Linux desktops, with a customizable halo and click feedback.
 
 [![CI](https://github.com/jjs-mm/cursor-halo/actions/workflows/ci.yml/badge.svg)](https://github.com/jjs-mm/cursor-halo/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 <img src="docs/images/windows-settings.png" width="340" alt="Cursor Halo Windows settings with appearance, click feedback, shortcut, and startup controls">
+<img src="docs/images/linux-x11-settings.png" width="340" alt="Cursor Halo Linux GTK settings with appearance, click feedback, shortcut, and launch-at-login controls">
 
-*Windows settings rendered by the native CI smoke test.*
+*Windows and Linux X11 settings rendered during native integration checks.*
 
 ## Features
 
@@ -27,10 +28,14 @@ Check [Releases](https://github.com/jjs-mm/cursor-halo/releases) for published a
 | --- | --- | --- |
 | macOS | macOS 13+, Apple Silicon and Intel | Universal app ZIP |
 | Windows | Windows 11, x64 and ARM64 | Self-contained native app ZIP for each architecture |
+| Linux X11 | Ubuntu 24.04 or compatible, x64 and ARM64; compositing required | Native GTK app archive for each architecture |
+| Linux GNOME Wayland | GNOME Shell 46 | Separate GNOME Shell extension |
 
 **macOS:** unzip and move `Cursor Halo.app` to Applications, then open it. The app lives in the menu bar. Builds are ad hoc signed; Apple Developer ID signing and notarization are not configured.
 
 **Windows:** extract the whole archive before running `CursorHalo.exe`. To install per user, run the included `Install-CursorHalo.ps1`; it requires no administrator account. The archive includes the .NET runtime. Windows builds are not Authenticode-signed, so Windows may display a reputation warning. Verify the source and archive before choosing to run it.
+
+**Linux:** choose the package for your desktop session, not only your processor. The native app requires composited **X11**; the separate extension runs inside **GNOME Shell 46**, including Wayland sessions. Other Wayland desktops, including KDE Plasma Wayland, are not supported by this preview. See [Linux installation and compatibility](docs/linux.md) for dependencies, installation, and the tested scope.
 
 Each archive has a SHA-256 checksum file. On macOS use `shasum -a 256 <archive.zip>`; on Windows use `Get-FileHash <archive.zip> -Algorithm SHA256` and compare it with the published value.
 
@@ -78,6 +83,18 @@ dotnet run --project windows/CursorHalo.Tests -c Release
 ```
 
 No third-party runtime package is used. The Windows build restores Microsoft's platform/runtime packs from NuGet. See [architecture](docs/architecture.md), [shared behavior](docs/behavior.md), and [testing](docs/testing.md).
+
+### Linux
+
+The X11 app uses C++17, GTK 3, Cairo, and X11/XInput2 system libraries. On Ubuntu 24.04:
+
+```sh
+sudo apt install build-essential cmake pkg-config libgtk-3-dev libxi-dev libxfixes-dev libxtst-dev python3
+./linux/scripts/build.sh
+./linux/scripts/test.sh
+```
+
+The GNOME extension is a separate implementation in `linux/gnome/`, using GJS and GNOME's compositor APIs. Build and native test instructions are in [Linux documentation](docs/linux.md).
 
 ## Privacy and maintenance
 

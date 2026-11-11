@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag matching VERSION, for example v0.3.0
+        description: Existing release tag matching VERSION, for example v0.4.0
         required: true
         type: string
 
@@ -69,8 +69,9 @@ jobs:
           import hashlib, os, pathlib
           root = pathlib.Path("release")
           version = os.environ["RELEASE_VERSION"]
-          expected = {f"CursorHalo-{version}-{platform}.zip" for platform in ("macos-universal", "win-x64", "win-arm64")}
-          if {p.name for p in root.glob("*.zip")} != expected:
+          expected = {f"CursorHalo-{version}-{platform}.zip" for platform in ("macos-universal", "win-x64", "win-arm64", "gnome-shell-46")}
+          expected |= {f"CursorHalo-{version}-linux-{arch}.tar.gz" for arch in ("x64", "arm64")}
+          if {p.name for p in root.iterdir() if p.name.endswith((".zip", ".tar.gz"))} != expected:
               raise SystemExit("Release archives are missing or unexpected.")
           for name in sorted(expected):
               archive = root / name
@@ -102,15 +103,16 @@ jobs:
               raise SystemExit("The remote tag moved since validation; refusing to create a release.")
           PYTAG
           cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
-          Native cursor highlighting for macOS and Windows.
+          Native cursor highlighting for macOS, Windows, and Linux.
 
           This is a preview build. Automated tests and native smoke checks passed for the packaged commit; manual multiple-display, fullscreen, login, and recording checks are still required before stable support claims.
 
           macOS: universal Apple Silicon/Intel app, locally ad hoc signed, not notarized.
           Windows: self-contained x64 and ARM64 portable apps, not Authenticode signed.
+          Linux: Ubuntu 24.04-compatible x64/ARM64 apps for composited X11, plus a GNOME Shell 46 Wayland extension. Other Wayland compositors and GNOME versions are not supported by this preview.
           SHA-256 files identify the attached archives. They are integrity checks, not a publisher identity guarantee.
 
           See the repository README for installation, permissions, and known limitations.
           NOTES
           printf '\nBuilt from commit: %s\n' "$RELEASE_COMMIT" >> "$RUNNER_TEMP/release-notes.md"
-          gh release create "$RELEASE_TAG" release/*.zip release/*.sha256 --verify-tag --target "$RELEASE_COMMIT" --draft --prerelease --title "Cursor Halo $RELEASE_VERSION preview" --notes-file "$RUNNER_TEMP/release-notes.md"
+          gh release create "$RELEASE_TAG" release/*.zip release/*.tar.gz release/*.sha256 --verify-tag --target "$RELEASE_COMMIT" --draft --prerelease --title "Cursor Halo $RELEASE_VERSION preview" --notes-file "$RUNNER_TEMP/release-notes.md"

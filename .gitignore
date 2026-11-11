@@ -10,3 +10,7 @@ dist/
 *.suo
 TestResults/
 .cursorhalo-test-output/
+
+# Linux local build and Python installer caches
+__pycache__/
+*.pyc

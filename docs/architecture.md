@@ -1,6 +1,6 @@
 # Architecture
 
-Cursor Halo uses two native applications with one [behavior contract](behavior.md). A small utility that draws above other applications needs platform-specific windowing, input, and startup APIs; a shared web UI would not remove those integrations.
+Cursor Halo uses native platform implementations with one [behavior contract](behavior.md). A small utility that draws above other applications needs platform-specific windowing, input, and startup APIs; a shared web UI would not remove those integrations.
 
 ## macOS
 
@@ -17,6 +17,14 @@ Shortcut replacement is transactional: an unavailable replacement must not remov
 A low-level mouse hook forwards bounded/coalesced work to the UI rather than rendering or writing settings inside the callback. Layered windows provide per-pixel alpha and non-activating, click-through feedback. Per-monitor DPI converts logical dimensions to physical pixels while preserving virtual-desktop coordinates. Animation work exists only while click feedback is active.
 
 The startup entry is per user. Registry presence expresses this app's registration intent; the Windows Startup Apps UI can independently disable launching. That external approval state is not inferred from undocumented registry layouts.
+
+## Linux
+
+`linux/src/` contains the C++17/GTK 3 X11 app and validated settings model. It links to distribution-managed GTK, Cairo, X11, XInput2, and Xfixes libraries. Pointer events drive updates, while click feedback uses bounded animations. Empty input regions and non-focusable windows keep input with the underlying application. The application uses XDG per-user directories for preferences and optional desktop autostart, with safeguards for files it does not own.
+
+`linux/gnome/` is a separate GNOME Shell extension for supported Shell versions. Wayland does not expose desktop-wide pointer observation and arbitrary global window positioning to ordinary clients. A compositor extension can draw non-reactive actors without relying on XWayland or privileged input-device access. CursorTracker signals drive pointer positions. Client button events do not reach stage signals, so an idle-aware 16 ms button-state sampler provides best-effort click feedback; it stops after one idle second and when disabled. Compatibility is explicitly versioned and checked in a disposable GNOME session.
+
+The app and extension have separate settings stores and lifecycle controls. Do not run both simultaneously. KDE Plasma Wayland and other Wayland compositors need their own integration; they are not covered by the X11 or GNOME implementations.
 
 ## Distribution
 

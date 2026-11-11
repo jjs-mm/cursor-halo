@@ -5,21 +5,21 @@ body:
     id: version
     attributes:
       label: Cursor Halo version
-      placeholder: 0.3.0
+      placeholder: 0.4.0
     validations:
       required: true
   - type: input
     id: environment
     attributes:
       label: Operating system and architecture
-      placeholder: Windows 11 ARM64, or macOS 15 Apple Silicon
+      placeholder: Ubuntu 24.04 X11 ARM64, Windows 11 ARM64, or macOS 15 Apple Silicon
     validations:
       required: true
   - type: textarea
     id: reproduce
     attributes:
       label: Steps to reproduce
-      description: Include display scaling, monitor arrangement, fullscreen mode, and recorder when relevant.
+      description: Include display scaling, monitor arrangement, fullscreen mode, and recorder when relevant. On Linux, include the distribution, desktop, and X11 or Wayland session type.
     validations:
       required: true
   - type: textarea

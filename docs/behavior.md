@@ -1,6 +1,6 @@
 # Shared behavior contract
 
-Both native implementations follow this contract. Platform APIs and storage formats are intentionally independent.
+The platform implementations follow this contract, with explicit desktop differences below. Platform APIs and storage formats are intentionally independent.
 
 | Setting | Default | Supported values |
 | --- | --- | --- |
@@ -24,6 +24,11 @@ Settings are local. Invalid, malformed, or nonfinite numeric values must not cra
 
 - macOS uses a menu-bar item, AppKit windows, native mouse event monitors, Carbon hotkey registration, and Service Management login registration.
 - Windows uses a notification-area icon, Win32 layered windows, a mouse hook, registered hotkeys, and a per-user startup entry.
+- Linux X11 uses GTK settings, a tray icon where the desktop provides one, XInput2 pointer events, X11 shortcut grabs, transparent input-shaped windows, and a per-user freedesktop autostart entry. Settings remain reachable without a tray.
+- GNOME Wayland support is a separate Shell extension. The compositor owns its overlays and input access. Enable or disable the extension using GNOME's extension controls; this also controls its availability after login.
+- GNOME pointer positioning is event-driven, while click feedback samples button state at 16 ms intervals during activity because client button events do not reach extensions. Sampling stops after one idle second and when feedback or highlighting is disabled. Clicks shorter than a sampling interval can be missed.
+- Native X11 binaries must not claim desktop-wide support merely because XWayland is available inside a Wayland session. Unsupported sessions show an explanation.
 - macOS points and Windows DIPs are logical dimensions; the renderer must adapt to each display's scale factor.
+- X11 uses the GTK desktop scale. Mixed fractional scaling and compositor-specific behavior require manual acceptance; do not infer them from the Windows per-monitor DPI implementation.
 - Full-display capture can include the overlay. Individual-window capture may omit it; capture behavior is owned by the recording application.
 - Secure desktop and operating-system UI restrictions take precedence over an always-on-top request.

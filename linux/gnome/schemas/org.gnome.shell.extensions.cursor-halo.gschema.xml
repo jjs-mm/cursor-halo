@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.cursor-halo" path="/org/gnome/shell/extensions/cursor-halo/">
+    <key name="enabled" type="b"><default>true</default><summary>Highlight pointer</summary></key>
+    <key name="style" type="i"><range min="0" max="1"/><default>0</default><summary>Ring or soft disc</summary></key>
+    <key name="color" type="i"><range min="0" max="4"/><default>0</default><summary>Halo color</summary></key>
+    <key name="diameter" type="i"><range min="28" max="120"/><default>56</default><summary>Diameter in logical pixels</summary></key>
+    <key name="opacity" type="i"><range min="20" max="100"/><default>85</default><summary>Opacity percentage</summary></key>
+    <key name="stroke" type="i"><range min="1" max="8"/><default>3</default><summary>Outline width in logical pixels</summary></key>
+    <key name="click-feedback" type="b"><default>true</default><summary>Click feedback</summary></key>
+    <key name="shortcut" type="i"><range min="0" max="2"/><default>0</default><summary>Global toggle shortcut</summary></key>
+    <key name="shortcut-error" type="s"><default>''</default><summary>Current shortcut registration error</summary></key>
+  </schema>
+</schemalist>

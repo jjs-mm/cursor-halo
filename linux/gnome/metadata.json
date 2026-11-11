@@ -1,0 +1,10 @@
+{
+  "uuid": "cursor-halo@jjs-mm.github.io",
+  "name": "Cursor Halo",
+  "description": "A configurable cursor halo and click feedback for GNOME Shell. Native Wayland support; no pointer events are logged.",
+  "shell-version": ["46"],
+  "version": 1,
+  "url": "https://github.com/jjs-mm/cursor-halo",
+  "settings-schema": "org.gnome.shell.extensions.cursor-halo",
+  "session-modes": ["user"]
+}
