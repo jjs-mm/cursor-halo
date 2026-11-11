@@ -19,21 +19,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let overlay = OverlayController()
     private let keyboardActivity = KeyboardActivityController()
     private let shortcut = GlobalShortcut()
+    private var instanceLock: SingleInstanceLock?
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
+    private var pendingReveal = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Reopening the app should reveal the existing instance, not create two overlays.
-        if let bundleID = Bundle.main.bundleIdentifier,
-           let existing = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-            .first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
-            DistributedNotificationCenter.default().post(name: Self.showSettingsNotification, object: nil)
-            existing.activate(options: [.activateIgnoringOtherApps])
+        // Observe before claiming the lock so a simultaneous second launch
+        // cannot send its reveal request before the winner is listening.
+        DistributedNotificationCenter.default().addObserver(self,
+            selector: #selector(revealSettings(_:)), name: Self.showSettingsNotification, object: nil)
+        do {
+            let lockURL = SingleInstanceLock.applicationLockURL
+            if let lock = try SingleInstanceLock.acquire(at: lockURL) {
+                instanceLock = lock
+            } else {
+                DistributedNotificationCenter.default().post(name: Self.showSettingsNotification, object: nil)
+                // If the incumbent was already quitting, its observer may no
+                // longer receive that request. Start this copy once it exits.
+                guard let lock = try SingleInstanceLock.acquire(at: lockURL, waitingUpTo: 2) else {
+                    NSApp.terminate(nil)
+                    return
+                }
+                instanceLock = lock
+                pendingReveal = true
+            }
+        } catch {
+            NSApp.setActivationPolicy(.regular)
+            let alert = NSAlert()
+            alert.messageText = "Cursor Halo couldn’t start"
+            alert.informativeText = "The app couldn’t secure its single-instance lock: \(error.localizedDescription)"
+            alert.runModal()
             NSApp.terminate(nil)
             return
         }
-        DistributedNotificationCenter.default().addObserver(self,
-            selector: #selector(revealSettings(_:)), name: Self.showSettingsNotification, object: nil)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
             button.target = self
@@ -52,6 +71,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         keyboardActivity.onMonitoringError = { [weak self] in self?.settings.keyboardMonitoringError = $0 }
         shortcut.onToggle = { [weak self] in self?.settings.isEnabled.toggle() }
         applySettings()
+
+        if pendingReveal {
+            pendingReveal = false
+            DispatchQueue.main.async { [weak self] in self?.showSettings() }
+        }
 
         if !UserDefaults.standard.bool(forKey: "hasOpenedSettings") || CommandLine.arguments.contains("--show-settings") {
             UserDefaults.standard.set(true, forKey: "hasOpenedSettings")
@@ -109,7 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func revealSettings(_ notification: Notification) {
-        showSettings()
+        if statusItem == nil { pendingReveal = true }
+        else { showSettings() }
     }
 
     private func showSettings() {

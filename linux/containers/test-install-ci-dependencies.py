@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
@@ -41,6 +42,30 @@ class DependencyFallbackTests(unittest.TestCase):
         expected = original.replace("https://archive.ubuntu.com/ubuntu/", "https://ftp.fau.de/ubuntu/").replace(
             "http://security.ubuntu.com/ubuntu", "http://ftp.fau.de/ubuntu/")
         self.assertEqual((output / "sources.list.d/ubuntu.sources").read_text(), expected)
+
+    def test_private_source_permissions_are_preserved(self):
+        source = self.sources / "sources.list.d/ubuntu.sources"
+        source.write_text("Types: deb\nURIs: https://archive.ubuntu.com/ubuntu/\n"
+                          "Suites: noble\nComponents: main\nX-Private: token\n")
+        source.chmod(0o600)
+        output = self.root / "fallback"
+        result = self.shell('prepare_fallback_sources "$1" "$2" "$3"', self.sources, output,
+                            "https://ftp.fau.de/ubuntu/")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        copied = output / "sources.list.d/ubuntu.sources"
+        self.assertEqual(stat.S_IMODE(copied.stat().st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE(source.stat().st_mode), 0o600)
+        self.assertIn("X-Private: token", copied.read_text())
+
+    def test_fallback_never_copies_world_write_or_execute_bits(self):
+        source = self.sources / "sources.list.d/ubuntu.sources"
+        source.write_text("URIs: https://archive.ubuntu.com/ubuntu/\n")
+        source.chmod(0o777)
+        output = self.root / "fallback"
+        result = self.shell('prepare_fallback_sources "$1" "$2" "$3"', self.sources, output,
+                            "https://ftp.fau.de/ubuntu/")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(stat.S_IMODE((output / "sources.list.d/ubuntu.sources").stat().st_mode), 0o644)
 
     def test_ports_legacy_and_runner_mirror_files(self):
         (self.sources / "sources.list").write_text(

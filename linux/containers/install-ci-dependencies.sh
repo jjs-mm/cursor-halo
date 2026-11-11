@@ -16,10 +16,14 @@ fallback_uri() {
     esac
 }
 
-prepare_fallback_sources() {
-    local source_root="$1" destination="$2" mirror_file_uri="$3" source target changed=false
+prepare_fallback_sources() (
+    local source_root="$1" destination="$2" mirror_file_uri="$3" source target mode changed=false
+    # Source files can contain inline credentials. Create every replacement as
+    # private before writing, then restore only the original file's read bits.
+    umask 077
     mkdir -p "$destination/sources.list.d" "$destination/lists/partial"
     chmod 755 "$destination" "$destination/sources.list.d" "$destination/lists" "$destination/lists/partial"
+    rm -f -- "$destination/sources.list"
     : > "$destination/sources.list"
     for source in "$source_root/sources.list" "$source_root/sources.list.d/"*.list "$source_root/sources.list.d/"*.sources; do
         [[ -f "$source" ]] || continue
@@ -29,20 +33,29 @@ prepare_fallback_sources() {
         # architecture filters, Signed-By and every other source option. Direct
         # URIs retain their transport scheme. Hosted-runner mirror+file sources
         # use HTTPS when a system CA bundle is available.
+        rm -f -- "$target"
         sed -E \
             -e 's@(https?://)([[:alnum:]-]+\.)*archive\.ubuntu\.com/ubuntu/?([[:space:]]|$)@\1ftp.fau.de/ubuntu/\3@g' \
             -e 's@(https?://)security\.ubuntu\.com/ubuntu/?([[:space:]]|$)@\1ftp.fau.de/ubuntu/\2@g' \
             -e 's@(https?://)ports\.ubuntu\.com/ubuntu-ports/?([[:space:]]|$)@\1ftp.fau.de/ubuntu-ports/\2@g' \
             -e "s@mirror\+file:/etc/apt/apt-(security-)?mirrors\.txt([[:space:]]|\$)@${mirror_file_uri}\\2@g" \
             "$source" > "$target"
-        chmod 644 "$target"
+        # Follow a source symlink when reading its mode, matching the input
+        # read above. BSD stat keeps this helper testable on a Mac as well.
+        if ! mode="$(stat -L -c %a "$source" 2>/dev/null)"; then
+            mode="$(stat -L -f %Lp "$source")"
+        fi
+        # Never promote write or execute access from a source whose parent
+        # directory may have hidden it from other users.
+        printf -v mode '%o' "$(( (8#$mode & 0444) | 0600 ))"
+        chmod "$mode" "$target"
         if ! cmp -s "$source" "$target"; then changed=true; fi
     done
     if [[ "$changed" != true ]]; then
         printf 'No recognized Ubuntu sources were found for the CI mirror fallback.\n' >&2
         return 1
     fi
-}
+)
 
 run_apt_update() {
     timeout --signal=TERM --kill-after=10s 180s apt-get \

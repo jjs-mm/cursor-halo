@@ -141,6 +141,37 @@ struct KeyboardActivityTests {
     }
 
     @Test
+    func secureInputTransitionClearsBadgeWithoutAnotherKeyEvent() async throws {
+        let monitoring = FakeKeyboardMonitoring()
+        var secure = false
+        let (controller, panel) = try makeController(monitoring, secureInput: { secure })
+        defer { controller.stop(); panel.close() }
+        controller.update(enabled: true)
+        monitoring.onShortcut?("⌘ C")
+        #expect(panel.isVisible)
+
+        secure = true
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(!panel.isVisible)
+        #expect((panel.contentView?.subviews.first as? NSTextField)?.stringValue == "")
+    }
+
+    @Test
+    func permissionRevocationClearsBadgeWithoutAnotherKeyEvent() async throws {
+        let monitoring = FakeKeyboardMonitoring()
+        let (controller, panel) = try makeController(monitoring)
+        defer { controller.stop(); panel.close() }
+        controller.update(enabled: true)
+        monitoring.onShortcut?("⌘ C")
+        #expect(panel.isVisible)
+
+        monitoring.hasPermission = false
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(!panel.isVisible)
+        #expect(!monitoring.active)
+    }
+
+    @Test
     func failureIsReportedAndCanBeRetried() throws {
         let monitoring = FakeKeyboardMonitoring()
         monitoring.shouldStart = false
