@@ -47,6 +47,9 @@ jobs:
       - name: Build Intel app
         if: matrix.arch == 'x86_64'
         run: ./scripts/build.sh
+      - name: Per-user installer smoke test
+        timeout-minutes: 5
+        run: ./scripts/smoke-install-macos.sh
       - name: Package universal app
         if: matrix.arch == 'arm64'
         run: ./scripts/package-macos.sh
@@ -89,6 +92,10 @@ jobs:
       - name: Native window, hotkey, and rendering smoke test
         shell: pwsh
         run: ./windows/scripts/smoke.ps1 -Executable "./dist/windows/${{ matrix.runtime }}/app/CursorHalo.exe" -OutputDirectory "./.build/smoke/${{ matrix.runtime }}"
+      - name: Per-user installer smoke test
+        timeout-minutes: 5
+        shell: pwsh
+        run: ./windows/scripts/smoke-install.ps1 -Runtime ${{ matrix.runtime }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

@@ -15,6 +15,8 @@ mkdir -p "$STAGE"
 cp "$PROJECT_ROOT/scripts/install-macos.sh" "$STAGE/install-macos.sh"
 cp "$PROJECT_ROOT/LICENSE" "$STAGE/LICENSE"
 cp "$PROJECT_ROOT/README.md" "$STAGE/README.md"
+cp "$PROJECT_ROOT/CONTRIBUTING.md" "$PROJECT_ROOT/SECURITY.md" "$PROJECT_ROOT/CHANGELOG.md" "$STAGE/"
+cp -R "$PROJECT_ROOT/docs" "$STAGE/docs"
 # Preserve bundle files and executable modes, without local extended metadata.
 /usr/bin/ditto -c -k --norsrc --noextattr --noacl "$STAGE" "$PROJECT_ROOT/dist/$ARCHIVE"
 (cd "$PROJECT_ROOT/dist" && shasum -a 256 "$ARCHIVE" > "$ARCHIVE.sha256")

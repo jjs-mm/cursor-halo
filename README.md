@@ -5,6 +5,10 @@
 [![CI](https://github.com/jjs-mm/cursor-halo/actions/workflows/ci.yml/badge.svg)](https://github.com/jjs-mm/cursor-halo/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+<img src="docs/images/windows-settings.png" width="340" alt="Cursor Halo Windows settings with appearance, click feedback, shortcut, and startup controls">
+
+*Windows settings rendered by the native CI smoke test.*
+
 ## Features
 
 - A high-contrast ring or soft disc around the pointer, with five colors and adjustable size, opacity, and stroke.

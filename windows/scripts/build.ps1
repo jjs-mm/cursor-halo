@@ -28,6 +28,10 @@ Copy-Item -LiteralPath $PublishRoot -Destination (Join-Path $StageRoot 'app') -R
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install.ps1') -Destination (Join-Path $StageRoot 'Install-CursorHalo.ps1')
 Copy-Item -LiteralPath (Join-Path $ProjectRoot 'LICENSE') -Destination (Join-Path $StageRoot 'LICENSE')
 Copy-Item -LiteralPath (Join-Path $ProjectRoot 'README.md') -Destination (Join-Path $StageRoot 'README.md')
+foreach ($Document in @('CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md')) {
+    Copy-Item -LiteralPath (Join-Path $ProjectRoot $Document) -Destination (Join-Path $StageRoot $Document)
+}
+Copy-Item -LiteralPath (Join-Path $ProjectRoot 'docs') -Destination (Join-Path $StageRoot 'docs') -Recurse
 $Manifest = @{
     schemaVersion = 1
     appId = 'local.personal.CursorHalo'
