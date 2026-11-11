@@ -59,6 +59,7 @@ final class KeyboardActivityController {
     private let panel = KeyboardActivityPanel()
     private let label = NSTextField(labelWithString: "")
     private var cleanup: DispatchSourceTimer?
+    private var expiresAt: TimeInterval = 0
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var enabled = false
     private var monitoringActive = false
@@ -177,21 +178,27 @@ final class KeyboardActivityController {
         label.frame = NSRect(x: 24, y: (height - label.frame.height) / 2,
                              width: width - 48, height: label.frame.height)
         panel.orderFrontRegardless()
+        expiresAt = ProcessInfo.processInfo.systemUptime + Self.displayDuration
         if cleanup == nil {
             let timer = DispatchSource.makeTimerSource(queue: .main)
-            timer.setEventHandler { [weak self] in self?.clear() }
+            timer.setEventHandler { [weak self] in
+                guard let self else { return }
+                // Secure input and permission can change without another key
+                // event. Check only while a badge is visible.
+                if self.secureInputEnabled() { self.clear(); return }
+                if !self.monitoring.hasPermission { self.reconcileActivity(); return }
+                if ProcessInfo.processInfo.systemUptime >= self.expiresAt { self.clear() }
+            }
             cleanup = timer
-            timer.schedule(deadline: .now() + Self.displayDuration)
+            timer.schedule(deadline: .now() + .milliseconds(50), repeating: .milliseconds(50))
             timer.resume()
-        } else {
-            // Reschedule one timer rather than queueing work for every key repeat.
-            cleanup?.schedule(deadline: .now() + Self.displayDuration)
         }
     }
 
     private func clear() {
         cleanup?.cancel()
         cleanup = nil
+        expiresAt = 0
         label.stringValue = ""
         panel.orderOut(nil)
     }

@@ -5,6 +5,13 @@ VERSION="$(tr -d '\r\n' < "$PROJECT_ROOT/VERSION")"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { printf 'Invalid VERSION.\n' >&2; exit 1; }
 APP="$PROJECT_ROOT/dist/Cursor Halo.app"
 codesign --verify --strict "$APP"
+for KEY in CFBundleShortVersionString CFBundleVersion; do
+    BUILT_VERSION="$(/usr/libexec/PlistBuddy -c "Print :$KEY" "$APP/Contents/Info.plist")"
+    if [[ "$BUILT_VERSION" != "$VERSION" ]]; then
+        printf 'Built app %s is %s, but VERSION is %s. Rebuild before packaging.\n' "$KEY" "$BUILT_VERSION" "$VERSION" >&2
+        exit 1
+    fi
+done
 /usr/bin/lipo "$APP/Contents/MacOS/CursorHalo" -verify_arch arm64
     /usr/bin/lipo "$APP/Contents/MacOS/CursorHalo" -verify_arch x86_64
 STAGE="$PROJECT_ROOT/.build/archive-macos"
