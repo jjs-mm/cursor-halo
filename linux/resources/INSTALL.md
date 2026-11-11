@@ -20,6 +20,6 @@ Open Cursor Halo from your application menu. The default toggle shortcut is **Ct
 
 To roll back, quit the app, move the current application directory aside, and move the retained backup back to `cursor-halo`. The launcher and startup command continue to reference that stable installation path. To uninstall, first disable launch at login in the app, quit it, then run the included installer with `--uninstall`. Appearance preferences and retained backups are left in place.
 
-Linux does not share a single desktop compositor. Test your actual multi-monitor layout, fullscreen applications, scaling, login, sleep/wake, and recorder before relying on it. Xvfb CI checks verify the native X11 integration and installer, not every desktop. For GNOME Shell 46 on Wayland, use the separate extension archive described in `docs/linux.md`.
+Linux does not share a single desktop compositor. Test your actual multi-monitor layout, fullscreen applications, scaling, login, sleep/wake, and recorder before relying on it. Xvfb CI checks verify the native X11 integration and installer, not every desktop. For GNOME Wayland, use the separate `CursorHalo-0.5.0-gnome-shell.zip` extension archive described in `docs/linux.md`. It supports GNOME Shell 50 on Ubuntu 26.04 LTS, GNOME Shell 51 on Ubuntu 26.10, and GNOME Shell 46 on Ubuntu 24.04 LTS.
 
 The executable links dynamically to system libraries, which remain managed by your distribution. No third-party shared libraries are bundled. Cursor Halo's source and executable are licensed under the included MIT license.
