@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag matching VERSION, for example v0.4.0
+        description: Existing release tag matching VERSION, for example v0.5.0
         required: true
         type: string
 
@@ -69,7 +69,7 @@ jobs:
           import hashlib, os, pathlib
           root = pathlib.Path("release")
           version = os.environ["RELEASE_VERSION"]
-          expected = {f"CursorHalo-{version}-{platform}.zip" for platform in ("macos-universal", "win-x64", "win-arm64", "gnome-shell-46")}
+          expected = {f"CursorHalo-{version}-{platform}.zip" for platform in ("macos-universal", "win-x64", "win-arm64", "gnome-shell")}
           expected |= {f"CursorHalo-{version}-linux-{arch}.tar.gz" for arch in ("x64", "arm64")}
           if {p.name for p in root.iterdir() if p.name.endswith((".zip", ".tar.gz"))} != expected:
               raise SystemExit("Release archives are missing or unexpected.")
@@ -109,7 +109,7 @@ jobs:
 
           macOS: universal Apple Silicon/Intel app, locally ad hoc signed, not notarized.
           Windows: self-contained x64 and ARM64 portable apps, not Authenticode signed.
-          Linux: Ubuntu 24.04-compatible x64/ARM64 apps for composited X11, plus a GNOME Shell 46 Wayland extension. Other Wayland compositors and GNOME versions are not supported by this preview.
+          Linux: Ubuntu 24.04-compatible x64/ARM64 apps for composited X11, plus a GNOME Shell 46/50/51 extension, including Ubuntu 26.04 LTS and Ubuntu 26.10 Wayland desktops. Other Wayland compositors and unlisted GNOME versions are not supported by this preview.
           SHA-256 files identify the attached archives. They are integrity checks, not a publisher identity guarantee.
 
           See the repository README for installation, permissions, and known limitations.

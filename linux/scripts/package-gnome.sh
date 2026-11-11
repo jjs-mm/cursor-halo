@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 VERSION="$(tr -d '\r\n' < "$ROOT/VERSION")"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { printf 'Invalid VERSION.\n' >&2; exit 1; }
-STAGE="$ROOT/.build/archive-gnome46"
+STAGE="$ROOT/.build/archive-gnome-shell"
 rm -rf -- "$STAGE"
 mkdir -p "$STAGE/schemas" "$ROOT/dist"
 cp "$ROOT/linux/gnome/metadata.json" "$ROOT/linux/gnome/extension.js" "$ROOT/linux/gnome/prefs.js" "$ROOT/linux/gnome/model.js" "$STAGE/"
@@ -14,13 +14,13 @@ python3 - "$STAGE/metadata.json" "$VERSION" <<'PY'
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 metadata = json.loads(path.read_text())
-if metadata['shell-version'] != ['46']:
-    raise SystemExit('This package is validated for GNOME Shell 46 only.')
+if metadata['shell-version'] != ['46', '50', '51']:
+    raise SystemExit('The package must match the GNOME Shell 46, 50, and 51 validation matrix.')
 metadata['version-name'] = sys.argv[2]
 path.write_text(json.dumps(metadata, indent=2) + '\n')
 PY
 glib-compile-schemas --strict "$STAGE/schemas"
-ARCHIVE="CursorHalo-$VERSION-gnome-shell-46.zip"
+ARCHIVE="CursorHalo-$VERSION-gnome-shell.zip"
 python3 - "$STAGE" "$ROOT/dist/$ARCHIVE" <<'PY'
 import pathlib, sys, zipfile
 stage, target = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])

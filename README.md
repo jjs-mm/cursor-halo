@@ -15,7 +15,7 @@
 - A high-contrast ring or soft disc around the pointer, with five colors and adjustable size, opacity, and stroke.
 - Click ripples that stay where you clicked, with a contrasting color for secondary clicks.
 - A global keyboard toggle, a menu-bar/tray control, and saved local preferences.
-- Optional launch at login, disabled by default.
+- Optional launch at login for the standalone apps, disabled by default. GNOME loads an enabled extension at login.
 - Click-through overlays that cannot take keyboard focus.
 - Native display coordinates and scaling, bounded animations, and event-driven pointer updates.
 - Reduced-animation support. No accounts, telemetry, advertising, network service, or web runtime.
@@ -29,20 +29,22 @@ Check [Releases](https://github.com/jjs-mm/cursor-halo/releases) for published a
 | macOS | macOS 13+, Apple Silicon and Intel | Universal app ZIP |
 | Windows | Windows 11, x64 and ARM64 | Self-contained native app ZIP for each architecture |
 | Linux X11 | Ubuntu 24.04 or compatible, x64 and ARM64; compositing required | Native GTK app archive for each architecture |
-| Linux GNOME Wayland | GNOME Shell 46 | Separate GNOME Shell extension |
+| Linux GNOME Wayland | GNOME Shell 46, 50, or 51; Ubuntu 24.04 LTS, 26.04 LTS, or 26.10 | Separate GNOME Shell extension |
 
 **macOS:** unzip and move `Cursor Halo.app` to Applications, then open it. The app lives in the menu bar. Builds are ad hoc signed; Apple Developer ID signing and notarization are not configured.
 
 **Windows:** extract the whole archive before running `CursorHalo.exe`. To install per user, run the included `Install-CursorHalo.ps1`; it requires no administrator account. The archive includes the .NET runtime. Windows builds are not Authenticode-signed, so Windows may display a reputation warning. Verify the source and archive before choosing to run it.
 
-**Linux:** choose the package for your desktop session, not only your processor. The native app requires composited **X11**; the separate extension runs inside **GNOME Shell 46**, including Wayland sessions. Other Wayland desktops, including KDE Plasma Wayland, are not supported by this preview. See [Linux installation and compatibility](docs/linux.md) for dependencies, installation, and the tested scope.
+**Ubuntu Desktop:** use the **GNOME extension** on Ubuntu 26.04 LTS (GNOME 50), Ubuntu 26.10 (GNOME 51), or Ubuntu 24.04 LTS (GNOME 46). The 0.5.0 extension archive is named `CursorHalo-0.5.0-gnome-shell.zip`; check [Releases](https://github.com/jjs-mm/cursor-halo/releases) for its publication and verified test results. Follow [Linux installation](docs/linux.md#gnome-wayland-extension) to install it and enable it after logging out/in.
+
+**Other Linux desktops:** the native GTK app requires a composited **X11** session. Current Ubuntu GNOME desktops use Wayland; the X11 archive is for a separate X11 desktop session. KDE Plasma Wayland and other Wayland compositors are outside this preview's support scope. See the [compatibility table](docs/linux.md) before choosing a package.
 
 Each archive has a SHA-256 checksum file. On macOS use `shasum -a 256 <archive.zip>`; on Windows use `Get-FileHash <archive.zip> -Algorithm SHA256` and compare it with the published value.
 
 ## Controls
 
-- Open settings from the menu-bar or notification-area icon.
-- **Control–Option–H** on Mac, or **Ctrl–Alt–H** on Windows, toggles highlighting. Alternative H/C shortcuts are available in settings.
+- Open settings from the menu-bar, notification-area, or GNOME panel icon.
+- **Control–Option–H** on Mac, or **Ctrl–Alt–H** on Windows and Linux, toggles highlighting. Alternative H/C shortcuts are available in settings.
 - Adjust ring/disc, color, size, opacity, stroke, and click feedback. Appearance changes apply immediately.
 - Enable **Launch at login** only when you want automatic startup. macOS may require approval in Login Items. Windows registers a per-user startup command; Windows Startup Apps can independently disable it, so check that page if it does not start.
 - Use **Reset appearance** to restore the visual defaults, or **Quit** to remove the overlay and stop the app.
@@ -89,7 +91,7 @@ No third-party runtime package is used. The Windows build restores Microsoft's p
 The X11 app uses C++17, GTK 3, Cairo, and X11/XInput2 system libraries. On Ubuntu 24.04:
 
 ```sh
-sudo apt install build-essential cmake pkg-config libgtk-3-dev libxi-dev libxfixes-dev libxtst-dev python3
+sudo apt install build-essential cmake pkg-config libgtk-3-dev libxi-dev libxfixes-dev libxext-dev libxtst-dev python3
 ./linux/scripts/build.sh
 ./linux/scripts/test.sh
 ```

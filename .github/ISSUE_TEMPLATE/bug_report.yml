@@ -5,14 +5,14 @@ body:
     id: version
     attributes:
       label: Cursor Halo version
-      placeholder: 0.4.0
+      placeholder: 0.5.0
     validations:
       required: true
   - type: input
     id: environment
     attributes:
       label: Operating system and architecture
-      placeholder: Ubuntu 24.04 X11 ARM64, Windows 11 ARM64, or macOS 15 Apple Silicon
+      placeholder: Ubuntu 26.04 GNOME 50 ARM64, Windows 11 ARM64, or macOS 15 Apple Silicon
     validations:
       required: true
   - type: textarea

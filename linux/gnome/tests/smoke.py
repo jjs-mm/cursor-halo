@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Bounded integration probe inside a disposable GNOME 46 Wayland compositor."""
+"""Bounded integration probe inside a disposable supported GNOME Wayland compositor."""
 import ast
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -10,6 +11,10 @@ import time
 
 out = Path(sys.argv[1]).resolve()
 checks = []
+shell_version = subprocess.check_output(['gnome-shell', '--version'], text=True).strip()
+shell_major = int(re.search(r'\b(\d+)(?:\.|$)', shell_version).group(1))
+if shell_major not in (46, 50, 51):
+    raise RuntimeError(f'Unexpected GNOME version: {shell_version}')
 shell_log = (out / 'gnome-shell.log').open('w')
 shell = subprocess.Popen(['gnome-shell', '--headless', '--wayland', '--no-x11', '--virtual-monitor', '1280x720', '--unsafe-mode'],
                          stdout=shell_log, stderr=subprocess.STDOUT)
@@ -51,12 +56,13 @@ def check(condition, message):
 
 try:
     wait_until(lambda: evaluate(f"Boolean({extension}?._halo)"), 30)
-    check(evaluate('Meta.is_wayland_compositor()'), 'Loaded extension in an actual GNOME Wayland compositor')
+    check(evaluate('Boolean(GLib.getenv("WAYLAND_DISPLAY"))'), 'Loaded extension in an actual GNOME Wayland compositor')
     check(evaluate(f"!{extension}._halo.reactive && !{extension}._halo.can_focus"), 'Overlay actor is nonreactive and cannot focus')
     check(evaluate(f"{extension}._action > 0"), 'Global toggle shortcut registered')
     evaluate("Main.overview.hide()")
     evaluate("(async () => { const {default: Clutter} = await import('gi://Clutter'); "
-             "global._haloSmokePointer = Clutter.get_default_backend().get_default_seat().create_virtual_device(Clutter.InputDeviceType.POINTER_DEVICE); "
+             "const backend = typeof global.stage.get_context === 'function' ? global.stage.get_context().get_backend() : Clutter.get_default_backend(); "
+             "global._haloSmokePointer = backend.get_default_seat().create_virtual_device(Clutter.InputDeviceType.POINTER_DEVICE); "
              "return true; })()")
     wayland_name = wait_until(lambda: evaluate('GLib.getenv("WAYLAND_DISPLAY")'))
     client_env = dict(os.environ, WAYLAND_DISPLAY=wayland_name, GDK_BACKEND='wayland')
@@ -66,11 +72,18 @@ try:
                               env=client_env, stdout=shell_log, stderr=subprocess.STDOUT)
     window_expr = "global.get_window_actors().map(a => a.meta_window).find(w => w.get_title() === 'Cursor Halo Wayland smoke client')"
     wait_until(lambda: evaluate(f"Boolean({window_expr})"))
+    wait_until(lambda: evaluate(f"({window_expr}).get_compositor_private().is_mapped() && ({window_expr}).get_frame_rect().width > 400"))
     evaluate(f"({window_expr}).activate(global.get_current_time())")
+    wait_until(lambda: evaluate("global.display.focus_window?.get_title() === 'Cursor Halo Wayland smoke client'"))
     rect = evaluate(f"(() => {{ const r=({window_expr}).get_frame_rect(); return [r.x,r.y,r.width,r.height]; }})()")
     x, y = rect[0] + rect[2] // 2, rect[1] + rect[3] // 2
-    evaluate(f'global._haloSmokePointer.notify_absolute_motion(GLib.get_monotonic_time(), {x}, {y})')
-    wait_until(lambda: evaluate(f'Math.abs({extension}._halo.x + {extension}._halo.width / 2 - {x}) < 2'))
+    # Exercise ordinary relative mouse motion. Current headless Mutter virtual
+    # absolute warps can constrain an axis while a surface is first activated.
+    evaluate(f'global._haloSmokePointer.notify_relative_motion(GLib.get_monotonic_time(), {x} - global.get_pointer()[0], 0)')
+    wait_until(lambda: evaluate(f'Math.abs(global.get_pointer()[0] - {x}) < 2'))
+    evaluate(f'global._haloSmokePointer.notify_relative_motion(GLib.get_monotonic_time(), 0, {y} - global.get_pointer()[1])')
+    wait_until(lambda: evaluate(f'Math.abs(global.get_pointer()[1] - {y}) < 2'))
+    wait_until(lambda: evaluate(f'Math.abs({extension}._halo.x + {extension}._halo.width / 2 - {x}) < 2 && Math.abs({extension}._halo.y + {extension}._halo.height / 2 - {y}) < 2'))
     check(True, 'Pointer tracking follows input over a native Wayland client')
     focus_before = evaluate('global.display.focus_window?.get_title()')
     evaluate('global._haloSmokePointer.notify_button(GLib.get_monotonic_time(), 1, 1)')
@@ -79,7 +92,8 @@ try:
     check(True, 'Client receives click through overlay and click feedback is rendered')
     evaluate('global._haloSmokePointer.notify_button(GLib.get_monotonic_time(), 1, 0)')
     evaluate("(async () => { const {default: Clutter} = await import('gi://Clutter'); "
-             "global._haloSmokeKeyboard = Clutter.get_default_backend().get_default_seat().create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE); "
+             "const backend = typeof global.stage.get_context === 'function' ? global.stage.get_context().get_backend() : Clutter.get_default_backend(); "
+             "global._haloSmokeKeyboard = backend.get_default_seat().create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE); "
              "return true; })()")
     def toggle_with_keyboard():
         evaluate('for (const key of [65507,65513,104]) global._haloSmokeKeyboard.notify_keyval(GLib.get_monotonic_time(),key,1)')
@@ -103,6 +117,17 @@ try:
     check(evaluate(f'{extension}._pulses.size <= 8 && {extension}._pulseTimeouts.size <= 8'), 'Reduced-motion actors and expiry sources are bounded')
     wait_until(lambda: evaluate(f'{extension}._pulses.size === 0 && {extension}._pulseTimeouts.size === 0'))
     check(True, 'Reduced-motion feedback expires without stale timer callbacks')
+    if shell_major >= 51:
+        evaluate("(async () => { global._haloSmokeSt = (await import('gi://St')).default; })()")
+        evaluate("global._haloSmokeA11y = new Gio.Settings({schema_id:'org.gnome.desktop.a11y.interface'}); global._haloSmokeA11y.set_enum('reduced-motion', 1)")
+        evaluate(f'{extension}._interface.set_boolean("enable-animations", true)')
+        wait_until(lambda: evaluate("Boolean(global._haloSmokeSt) && global._haloSmokeSt.Settings.get().reduced_motion === global._haloSmokeSt.ReducedMotion.REDUCE"))
+        wait_until(lambda: evaluate(f'!{extension}._usesMotion()'))
+        evaluate(f'{extension}._pulse({x},{y},1)')
+        check(evaluate(f'{extension}._pulseTimeouts.size === 1'), 'GNOME 51 reduced-motion preference selects static feedback independently of animation enablement')
+        wait_until(lambda: evaluate(f'{extension}._pulses.size === 0 && {extension}._pulseTimeouts.size === 0'))
+        evaluate('global._haloSmokeA11y.reset("reduced-motion")')
+        evaluate(f'{extension}._interface.set_boolean("enable-animations", false)')
     wait_until(lambda: evaluate(f'!{extension}._buttonPollId && Boolean({extension}._userWatchId)'), 3)
     check(True, 'Button sampling stops while idle')
     evaluate('global._haloSmokePointer.notify_button(GLib.get_monotonic_time(), 1, 1)')
@@ -127,11 +152,12 @@ try:
     wait_until(lambda: evaluate("global.display.focus_window?.get_title() === 'Cursor Halo'"), 5)
     check(True, 'Native GTK preferences window opens successfully')
     screenshot = json.dumps(str(out / 'settings.png'))
-    evaluate(f'(async () => {{ const stream=Gio.File.new_for_path({screenshot}).replace(null,false,Gio.FileCreateFlags.REPLACE_DESTINATION,null); await new Shell.Screenshot().screenshot(false,stream); stream.close(null); return true; }})()')
+    evaluate(f'(async () => {{ const stream=Gio.File.new_for_path({screenshot}).replace(null,false,Gio.FileCreateFlags.REPLACE_DESTINATION,null); await new Shell.Screenshot().screenshot(false,stream); stream.close(null); global._haloScreenshotSaved = true; }})()')
+    wait_until(lambda: evaluate('global._haloScreenshotSaved === true'))
     evaluate(f'global._haloSmokeExtension = {extension}; Main.extensionManager.disableExtension("{uuid}")')
     wait_until(lambda: evaluate('!global._haloSmokeExtension._halo && !global._haloSmokeExtension._action'))
     check(evaluate('!global._haloSmokeExtension._button && global._haloSmokeExtension._pulses.size === 0'), 'Disabling removes all owned actors, hotkeys, and panel controls')
-    result = {'success': True, 'shellVersion': subprocess.check_output(['gnome-shell', '--version'], text=True).strip(), 'checks': checks}
+    result = {'success': True, 'shellVersion': shell_version, 'checks': checks}
     (out / 'native-smoke.json').write_text(json.dumps(result, indent=2) + '\n')
 finally:
     if client is not None:

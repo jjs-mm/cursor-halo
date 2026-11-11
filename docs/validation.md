@@ -1,6 +1,6 @@
 # Release validation
 
-Candidate: **0.4.0**, Linux preview alongside the macOS/Windows apps. This file records coverage, not a blanket guarantee of compatibility.
+Candidate: **0.5.0**, Ubuntu LTS and current GNOME compatibility alongside the existing macOS/Windows/X11 apps. This file records coverage, not a blanket guarantee of compatibility.
 
 ## Current evidence
 
@@ -11,9 +11,11 @@ Candidate: **0.4.0**, Linux preview alongside the macOS/Windows apps. This file 
 | Windows core and native baseline | Passed | Six core checks passed. Initial native Windows x64 and ARM64 CI smoke checks passed for overlays, focus, hotkey conflicts/stale IDs, hook cleanup, and isolated settings rendering. See [baseline run](https://github.com/jjs-mm/cursor-halo/actions/runs/42997152227); later candidates must pass their own checks. |
 | Native architecture CI and Windows smoke | Required per candidate | Check the exact commit in [Actions](https://github.com/jjs-mm/cursor-halo/actions/workflows/ci.yml). Release notes link the verified run; its artifacts include Windows smoke JSON and isolated settings renders. |
 | Linux X11 | Required per candidate | Native Ubuntu 24.04 x64 and ARM64 builds, core behavior checks, real X11 input/overlay smoke tests under Xvfb with Openbox/xcompmgr, and isolated installer tests. A virtual composited X11 display does not certify a physical desktop's scaling or recorder. |
-| GNOME Wayland | Required per candidate | A separate extension is tested inside a disposable GNOME Shell 46 Wayland compositor, including input over a native Wayland client, click-through/focus, shortcuts, and cleanup. Other Shell versions and Wayland compositors are outside the declared support scope. |
+| GNOME Wayland | Required per candidate | The compatibility matrix covers GNOME 46 directly on Ubuntu 24.04 runners, plus Ubuntu 26.04/GNOME 50 and Ubuntu 26.10/GNOME 51 containers on matching native x64 and ARM64 runners. Each cell must run the actual Shell Wayland compositor. Container artifacts record the actual OS, Shell/package versions, and architecture in `environment.json`. Checks include input over a native Wayland client, click-through/focus, shortcuts/conflicts, idle recovery, bounded feedback, effective animation preferences, preferences UI, and session-mode cleanup. Release notes link the completed exact-commit run; this required matrix is not a claim that an unrun candidate has passed. |
 | Packaging and signatures | Required per candidate | Build scripts verify Mac ad hoc signatures and package architecture, include licenses, and generate checksums. CI exercises fresh installation and replacement in disposable per-user directories, checks backup and preference preservation, and removes its test-created files. Windows and Linux installer tests also compare startup registration. Release preparation verifies each checksum. Developer ID notarization and Windows Authenticode signing are not configured. |
 | Open-source source review | Passed locally | MIT license and contributor/security docs are included. Candidate source files contain no generated builds, personal paths, private email, private-key blocks, or GitHub-token patterns in the bounded pre-publication scan. |
+
+GNOME compatibility is limited to Shell majors **46, 50, and 51** after their native runtime gates pass. GNOME 47–49 and unlisted versions are not covered, and neither are KDE Plasma Wayland or other compositors. Container checks use software rendering; they do not validate a complete Ubuntu desktop installation, a distribution upgrade, a hardware GPU driver, or a physical lock/unlock cycle.
 
 ## Runtime acceptance still needed
 

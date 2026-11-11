@@ -8,6 +8,7 @@ import St from 'gi://St';
 import Cairo from 'cairo';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
@@ -19,7 +20,10 @@ export default class CursorHalo extends Extension {
         this._pulseTimeouts = new Map();
         this._settings = this.getSettings();
         this._interface = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
-        this._tracker = Meta.CursorTracker.get_for_display(global.display);
+        // GNOME 48 moved this factory from Meta.CursorTracker to Meta.Backend.
+        this._tracker = typeof global.backend.get_cursor_tracker === 'function'
+            ? global.backend.get_cursor_tracker()
+            : Meta.CursorTracker.get_for_display(global.display);
         this._activeShortcut = null;
         this._action = 0;
         this._button = new PanelMenu.Button(0.0, 'Cursor Halo');
@@ -102,7 +106,17 @@ export default class CursorHalo extends Extension {
             cr.stroke();
             cr.$dispose();
         });
-        Main.layoutManager.addTopChrome(actor, {affectsInputRegion: false, trackFullscreen: false});
+        const chromeParams = {trackFullscreen: false};
+        // Shell 50 removed the X11 stage input-region option. Wayland hit
+        // testing uses the actor's reactive flag instead.
+        if (Number.parseInt(Config.PACKAGE_VERSION, 10) < 50)
+            chromeParams.affectsInputRegion = false;
+        try {
+            Main.layoutManager.addTopChrome(actor, chromeParams);
+        } catch (error) {
+            actor.destroy();
+            throw error;
+        }
         return actor;
     }
 
@@ -118,7 +132,7 @@ export default class CursorHalo extends Extension {
         // only button state while the user is active; never capture typed keys.
         // Like Shell's PointerWatcher, observation stops after one idle second.
         if (this._settings.get_boolean('click-feedback')) {
-            this._lastButtons = global.get_pointer()[2];
+            this._lastButtons = this._pointerState()[2];
             this._idleMonitor = global.backend.get_core_idle_monitor();
             this._idleWatchId = this._idleMonitor.add_idle_watch(1000, () => this._waitForActivity());
             if (this._idleMonitor.get_idletime() >= 1000) this._waitForActivity();
@@ -148,7 +162,7 @@ export default class CursorHalo extends Extension {
     }
 
     _sampleButtons() {
-        const [x, y, state] = global.get_pointer();
+        const [x, y, state] = this._pointerState();
         const buttons = [Clutter.ModifierType.BUTTON1_MASK, Clutter.ModifierType.BUTTON2_MASK, Clutter.ModifierType.BUTTON3_MASK];
         for (let i = 0; i < buttons.length; i++) {
             if ((state & buttons[i]) && !(this._lastButtons & buttons[i])) this._pulse(x, y, i + 1);
@@ -158,11 +172,25 @@ export default class CursorHalo extends Extension {
 
     _updatePointer() {
         if (!this._halo) return;
-        const [x, y] = global.get_pointer();
+        const [x, y] = this._pointerState();
         if (!finitePoint(x, y)) { this._halo.hide(); return; }
         this._halo.set_position(x - this._halo.width / 2, y - this._halo.height / 2);
         this._halo.show();
         if (this._idleMonitor) this._sampleButtons();
+    }
+
+    _pointerState() {
+        const [point, modifiers] = this._tracker.get_pointer();
+        return [point.x, point.y, modifiers];
+    }
+
+    _usesMotion() {
+        const settings = St.Settings.get();
+        // Shell 51 distinguishes reduced motion from disabling all animations.
+        const reduced = St.ReducedMotion !== undefined &&
+            settings.reduced_motion === St.ReducedMotion.REDUCE;
+        return this._interface.get_boolean('enable-animations') &&
+            settings.enable_animations && !reduced;
     }
 
     _pulse(x, y, button) {
@@ -173,7 +201,7 @@ export default class CursorHalo extends Extension {
         actor.set_position(x - actor.width / 2, y - actor.height / 2);
         actor.set_pivot_point(0.5, 0.5);
         this._pulses.add(actor);
-        if (this._interface.get_boolean('enable-animations') && St.Settings.get().enable_animations) {
+        if (this._usesMotion()) {
             actor.ease({opacity: 0, scale_x: 1.65, scale_y: 1.65, duration: PULSE_MS,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD, onComplete: () => this._destroyActor(actor)});
         } else {

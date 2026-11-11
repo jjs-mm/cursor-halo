@@ -180,13 +180,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y gnome-shell gnome-shell-extension-prefs dbus-x11 xwayland gsettings-desktop-schemas libgl1-mesa-dri mesa-utils python3
+      - name: Verify and record GNOME 46 environment
+        run: python3 linux/scripts/record-gnome-environment.py 46 .build/smoke/gnome-${{ matrix.arch }}/environment.json
       - name: GNOME settings and behavior tests
         run: |
           node --version
           node --test linux/gnome/tests/model.test.js
       - name: Native GNOME Wayland extension smoke
         run: ./linux/gnome/tests/smoke.sh .build/smoke/gnome-${{ matrix.arch }}
-      - name: Package GNOME 46 extension
+      - name: Package GNOME extension
         if: matrix.arch == 'x64'
         run: ./linux/scripts/package-gnome.sh
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -199,9 +201,48 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: matrix.arch == 'x64'
         with:
-          name: release-gnome-shell-46
+          name: release-gnome-shell
           path: |
-            dist/CursorHalo-*-gnome-shell-46.zip
-            dist/CursorHalo-*-gnome-shell-46.zip.sha256
+            dist/CursorHalo-*-gnome-shell.zip
+            dist/CursorHalo-*-gnome-shell.zip.sha256
           if-no-files-found: error
+          retention-days: 14
+
+  gnome-current:
+    name: GNOME ${{ matrix.shell }} / Ubuntu ${{ matrix.distro }} / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x64
+            distro: '26.04'
+            shell: '50'
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            distro: '26.04'
+            shell: '50'
+          - runner: ubuntu-24.04
+            arch: x64
+            distro: '26.10'
+            shell: '51'
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            distro: '26.10'
+            shell: '51'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - name: Build pinned Ubuntu image and test native GNOME Wayland
+        run: ./linux/scripts/test-gnome-container.sh '${{ matrix.distro }}' '.build/smoke/gnome-${{ matrix.shell }}-${{ matrix.arch }}' '${{ matrix.arch }}'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: validation-gnome-${{ matrix.shell }}-${{ matrix.arch }}
+          path: .build/smoke/gnome-${{ matrix.shell }}-${{ matrix.arch }}
+          if-no-files-found: warn
           retention-days: 14

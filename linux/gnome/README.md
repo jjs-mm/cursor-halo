@@ -1,13 +1,15 @@
-# Cursor Halo for GNOME Shell 46
+# Cursor Halo for GNOME Shell
 
-This extension provides native Wayland cursor highlighting inside GNOME Shell. It supports **GNOME Shell 46**, including Ubuntu 24.04's GNOME desktop. Other Shell versions and other Wayland compositors are not declared compatible. Check your version with `gnome-shell --version`.
+This extension provides native Wayland cursor highlighting inside GNOME Shell. The 0.5.0 compatibility candidate targets **GNOME Shell 46, 50, and 51**: Ubuntu 24.04 LTS, Ubuntu 26.04 LTS, and Ubuntu 26.10 respectively. The same extension ZIP is used on x64 and ARM64. Check `gnome-shell --version` and the published release's runtime results before installing; GNOME 47–49 and other unlisted versions are not declared compatible. Other Wayland compositors require a different implementation.
+
+On Ubuntu 26.04 LTS and 26.10 GNOME desktops, install this extension. Those desktop sessions use Wayland; the separate native Cursor Halo X11 archive is for a composited X11 desktop session. See [Ubuntu's desktop session notes](https://documentation.ubuntu.com/release-notes/26.04/summary-for-lts-users/#wayland-session).
 
 ## Install and enable
 
-Download `CursorHalo-<version>-gnome-shell-46.zip` from [Releases](https://github.com/jjs-mm/cursor-halo/releases) and compare its SHA-256 checksum with the accompanying file. Install the ZIP as your normal user:
+Download `CursorHalo-<version>-gnome-shell.zip` from [Releases](https://github.com/jjs-mm/cursor-halo/releases) and compare its SHA-256 checksum with the accompanying file. Install the ZIP as your normal user:
 
 ```sh
-gnome-extensions install /path/to/CursorHalo-0.4.0-gnome-shell-46.zip
+gnome-extensions install /path/to/CursorHalo-0.5.0-gnome-shell.zip
 ```
 
 Log out and log back in so GNOME discovers the new extension, then enable it in the **Extensions** app or run:
@@ -41,12 +43,12 @@ gnome-extensions uninstall cursor-halo@jjs-mm.github.io
 
 - Ring or soft disc, five colors, adjustable size/opacity/outline, contrasting secondary-click feedback, and a global toggle shortcut.
 - Nonreactive compositor actors pass clicks to applications and do not take keyboard focus. The extension disables itself in the lock-screen session mode.
-- Pointer position uses Mutter's cursor notifications. GNOME 46 consumes application button events before Shell stage signals, so click feedback samples button state every 16 ms while the user is active. Sampling stops after one second of idle time and resumes on activity. A press and release entirely between samples can be missed. There is no continuous idle rendering loop.
-- At most eight short-lived click indicators are retained. GNOME's effective animation preference selects a brief static indicator when animations are disabled.
+- Pointer position uses Mutter's cursor notifications. GNOME consumes application button events before Shell stage signals, so click feedback samples button state every 16 ms while the user is active. Sampling stops after one second of idle time and resumes on activity. A press and release entirely between samples can be missed. There is no continuous idle rendering loop.
+- At most eight short-lived click indicators are retained. GNOME's effective animation and Reduced Motion settings select a brief static indicator when motion is reduced or animations are disabled.
 - Only pointer position and button state are read for drawing; events and typed keys are not logged. Settings are local, and the extension makes no network requests.
 - Do not run the X11 app and the GNOME extension together. Use this extension on GNOME Wayland; use the native X11 app on supported X11 desktops.
 
-Automated smoke tests run a real headless GNOME 46 Wayland compositor with a native Wayland test client. They cover click-through behavior, focus, virtual pointer/keyboard input, shortcut conflicts, idle recovery, bounded pulse cleanup, lock-screen session-mode cleanup, and the preferences window. Physical displays, actual next-login startup, and individual recording applications still require manual acceptance. Test a short full-display recording before relying on capture.
+The native test matrix requires real headless Wayland compositors on x64 and ARM64. GNOME 46 runs directly on native Ubuntu 24.04 runners; GNOME 50 and 51 use Ubuntu 26.04 and 26.10 containers on runners of the same architecture. Software rendering and a native Wayland test client exercise the actual compositor APIs. Container artifacts record the OS, Shell/package versions, and architecture. The checks cover click-through behavior, focus, virtual pointer/keyboard input, shortcut conflicts, idle recovery, bounded pulse cleanup, lock-screen session-mode cleanup, and the preferences window. Physical displays, actual next-login startup, and individual recording applications still require manual acceptance. Test a short full-display recording before relying on capture.
 
 ## Source and testing
 
@@ -59,4 +61,4 @@ node --test linux/gnome/tests/model.test.js
 bash linux/gnome/tests/smoke.sh .build/gnome-smoke
 ```
 
-The smoke test requires a disposable Ubuntu 24.04 environment with GNOME Shell 46, a system D-Bus, software rendering, and the packages declared in CI. It creates isolated XDG directories and a fresh session bus. Its `--unsafe-mode` flag applies only to that test compositor to inspect assertions and inject virtual input; it is never used by the installed extension.
+Run the smoke test in each declared Ubuntu/GNOME environment with a system D-Bus, software rendering, and the packages declared in CI. The test must reject an unexpected Shell major rather than silently treating a different runtime as covered. It creates isolated XDG directories and a fresh session bus. Its `--unsafe-mode` flag applies only to that test compositor to inspect assertions and inject virtual input; it is never used by the installed extension.

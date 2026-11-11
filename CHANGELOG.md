@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 — Ubuntu and GNOME compatibility candidate
+
+- Added compatibility paths for GNOME Shell 50 on Ubuntu 26.04 LTS and GNOME Shell 51 on Ubuntu 26.10, while retaining GNOME Shell 46 on Ubuntu 24.04. Publication requires all declared runtime checks to pass.
+- Adapted cursor-tracker access and effective reduced-motion handling for the newer Shell APIs.
+- Expanded native Wayland validation to the three Ubuntu/Shell combinations on x64 and ARM64, using the actual distribution compositor packages.
+- Renamed the shared extension archive to `CursorHalo-0.5.0-gnome-shell.zip` and clarified the GNOME extension installation path for current Ubuntu desktops.
+- Kept GNOME 47–49 and other Wayland compositors outside the declared compatibility list; physical-display and recording acceptance remains separate.
+
 ## 0.4.0 — Linux preview
 
 - Added a native GTK app for composited Linux X11 sessions on x64 and ARM64, including appearance settings, click feedback, global shortcuts, and per-user login launch.
