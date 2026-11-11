@@ -1,0 +1,12 @@
+.build/
+dist/
+.DS_Store
+.swiftpm/
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo
+TestResults/
+.cursorhalo-test-output/

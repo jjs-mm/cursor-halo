@@ -1,0 +1,116 @@
+name: Draft prerelease
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag matching VERSION, for example v0.3.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prerelease-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      commit: ${{ steps.identity.outputs.commit }}
+      version: ${{ steps.identity.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+      - name: Verify candidate identity
+        id: identity
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, subprocess
+          tag = os.environ["RELEASE_TAG"]
+          version = pathlib.Path("VERSION").read_text().strip()
+          if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag) or tag != "v" + version:
+              raise SystemExit("The tag must be v followed by the exact VERSION value.")
+          commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"commit={commit}\nversion={version}\n")
+          PY
+
+  build:
+    needs: candidate
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.candidate.outputs.commit }}
+
+  draft:
+    needs: [candidate, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - name: Verify every release checksum
+        env:
+          RELEASE_VERSION: ${{ needs.candidate.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, os, pathlib
+          root = pathlib.Path("release")
+          version = os.environ["RELEASE_VERSION"]
+          expected = {f"CursorHalo-{version}-{platform}.zip" for platform in ("macos-universal", "win-x64", "win-arm64")}
+          if {p.name for p in root.glob("*.zip")} != expected:
+              raise SystemExit("Release archives are missing or unexpected.")
+          for name in sorted(expected):
+              archive = root / name
+              recorded = (root / (name + ".sha256")).read_text().strip().split()
+              digest = hashlib.file_digest(archive.open("rb"), "sha256").hexdigest()
+              if recorded != [digest, name]:
+                  raise SystemExit(f"Checksum mismatch: {name}")
+              print(f"Verified {name}")
+          PY
+      - name: Create draft prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_COMMIT: ${{ needs.candidate.outputs.commit }}
+          RELEASE_VERSION: ${{ needs.candidate.outputs.version }}
+        run: |
+          python3 - <<'PYTAG'
+          import json, os, subprocess
+          repo, tag = os.environ["GH_REPO"], os.environ["RELEASE_TAG"]
+          def get(path):
+              return json.loads(subprocess.check_output(["gh", "api", path], text=True))
+          obj = get(f"repos/{repo}/git/ref/tags/{tag}")["object"]
+          for _ in range(8):
+              if obj["type"] != "tag":
+                  break
+              obj = get(f"repos/{repo}/git/tags/{obj['sha']}")["object"]
+          if obj["type"] != "commit" or obj["sha"] != os.environ["RELEASE_COMMIT"]:
+              raise SystemExit("The remote tag moved since validation; refusing to create a release.")
+          PYTAG
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          Native cursor highlighting for macOS and Windows.
+
+          This is a preview build. Automated tests and native smoke checks passed for the packaged commit; manual multiple-display, fullscreen, login, and recording checks are still required before stable support claims.
+
+          macOS: universal Apple Silicon/Intel app, locally ad hoc signed, not notarized.
+          Windows: self-contained x64 and ARM64 portable apps, not Authenticode signed.
+          SHA-256 files identify the attached archives. They are integrity checks, not a publisher identity guarantee.
+
+          See the repository README for installation, permissions, and known limitations.
+          NOTES
+          printf '\nBuilt from commit: %s\n' "$RELEASE_COMMIT" >> "$RUNNER_TEMP/release-notes.md"
+          gh release create "$RELEASE_TAG" release/*.zip release/*.sha256 --verify-tag --target "$RELEASE_COMMIT" --draft --prerelease --title "Cursor Halo $RELEASE_VERSION preview" --notes-file "$RUNNER_TEMP/release-notes.md"

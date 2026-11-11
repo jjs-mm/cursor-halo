@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible problem with Cursor Halo
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Cursor Halo version
+      placeholder: 0.3.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and architecture
+      placeholder: Windows 11 ARM64, or macOS 15 Apple Silicon
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include display scaling, monitor arrangement, fullscreen mode, and recorder when relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or logs
+      description: Remove personal or confidential information before posting.
