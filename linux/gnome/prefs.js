@@ -38,6 +38,8 @@ export default class CursorHaloPreferences extends ExtensionPreferences {
         number('opacity', 'Opacity (%)', 20, 100);
         number('stroke', 'Outline width', 1, 8);
         toggle(controls, 'click-feedback', 'Click feedback');
+        controls.add(new Adw.ActionRow({title: 'Keyboard activity',
+            subtitle: 'Shortcut display is available in the native X11 app. GNOME Wayland does not expose passive application keyboard events to this extension.'}));
         choice(controls, 'shortcut', 'Toggle shortcut', ['Ctrl + Alt + H', 'Ctrl + Alt + C', 'Ctrl + Shift + H']);
         const status = new Adw.ActionRow({title: 'Shortcut status'});
         const updateStatus = () => {

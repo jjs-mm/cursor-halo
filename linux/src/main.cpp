@@ -100,6 +100,11 @@ class Input {
     guint source = 0;
     struct EventSource { GSource source; GPollFD poll; Input *owner; };
     bool observing = false;
+    bool observingKeyboard = false;
+    bool selectionKnown = true;
+    int xkbEventBase = 0;
+    unsigned int keyboardModifiers = 0, keyboardGroup = 0;
+    unsigned int altMask = Mod1Mask, superMask = Mod4Mask, layoutMask = Mod5Mask;
     bool shortcutDown = false;
     int activeShortcut = -1;
     unsigned int numLock = 0;
@@ -125,11 +130,73 @@ class Input {
         for (auto lock : locks()) XUngrabKey(display, static_cast<int>(code), mods | lock, root);
         XSync(display, False);
     }
+    void readModifierMap() {
+        altMask = superMask = layoutMask = 0;
+        XModifierKeymap *map = XGetModifierMapping(display);
+        if (!map) return;
+        for (int mod = 0; mod < 8; ++mod) for (int key = 0; key < map->max_keypermod; ++key) {
+            KeyCode code = map->modifiermap[mod * map->max_keypermod + key];
+            if (!code) continue;
+            KeySym symbol = XkbKeycodeToKeysym(display, code, 0, 0);
+            if (symbol == XK_Alt_L || symbol == XK_Alt_R) altMask |= 1u << mod;
+            if (symbol == XK_Super_L || symbol == XK_Super_R || symbol == XK_Meta_L || symbol == XK_Meta_R) superMask |= 1u << mod;
+            if (symbol == XK_ISO_Level3_Shift || symbol == XK_ISO_Level5_Shift || symbol == XK_Mode_switch) layoutMask |= 1u << mod;
+        }
+        XFreeModifiermap(map);
+        // Some PC keymaps alias Meta to Alt's Mod1 bit. Do not label the same
+        // physical modifier twice as both Alt and Super.
+        superMask &= ~altMask;
+    }
+    void keyActivity(int code) {
+        if (!observingKeyboard || !(keyboardModifiers & (ControlMask | altMask | superMask)) || (keyboardModifiers & layoutMask)) return;
+        KeySym symbol = NoSymbol; unsigned int unused = 0;
+        // Resolve the base key in the active layout. Modifier labels are shown
+        // separately, so Ctrl+Shift+1 remains readable instead of Ctrl+Shift+!.
+        if (!XkbLookupKeySym(display, static_cast<KeyCode>(code), XkbBuildCoreState(0, keyboardGroup), &unused, &symbol)) return;
+        if (IsModifierKey(symbol) || symbol == XK_ISO_Level3_Shift || symbol == XK_ISO_Level5_Shift || symbol == XK_Mode_switch || symbol == XK_Multi_key) return;
+        std::string label;
+        switch (symbol) {
+        case XK_Return: case XK_KP_Enter: label = "Enter"; break;
+        case XK_Escape: label = "Esc"; break;
+        case XK_Tab: case XK_ISO_Left_Tab: label = "Tab"; break;
+        case XK_space: label = "Space"; break;
+        case XK_BackSpace: label = "Backspace"; break;
+        case XK_Delete: case XK_KP_Delete: label = "Delete"; break;
+        case XK_Left: case XK_KP_Left: label = "Left"; break;
+        case XK_Right: case XK_KP_Right: label = "Right"; break;
+        case XK_Up: case XK_KP_Up: label = "Up"; break;
+        case XK_Down: case XK_KP_Down: label = "Down"; break;
+        case XK_Home: case XK_KP_Home: label = "Home"; break;
+        case XK_End: case XK_KP_End: label = "End"; break;
+        case XK_Page_Up: case XK_KP_Page_Up: label = "Page Up"; break;
+        case XK_Page_Down: case XK_KP_Page_Down: label = "Page Down"; break;
+        case XK_Insert: case XK_KP_Insert: label = "Insert"; break;
+        default: {
+            gunichar character = gdk_keyval_to_unicode(static_cast<guint>(symbol));
+            if (character && g_unichar_isprint(character) && !g_unichar_isspace(character)) {
+                char utf8[7] = {}; int length = g_unichar_to_utf8(g_unichar_toupper(character), utf8);
+                label.assign(utf8, static_cast<size_t>(length));
+            } else if (symbol >= XK_F1 && symbol <= XK_F35) label = "F" + std::to_string(symbol - XK_F1 + 1);
+            break;
+        }
+        }
+        auto chord = halo::keyboardChord(label, keyboardModifiers & ControlMask, keyboardModifiers & altMask,
+            keyboardModifiers & superMask, keyboardModifiers & ShiftMask, keyboardModifiers & layoutMask);
+        if (!chord.empty() && onKeyboard) onKeyboard(chord);
+    }
     void drain() {
         bool moved = false;
         for (int count = 0; count < 512 && XPending(display); ++count) {
             XEvent event; XNextEvent(display, &event);
-            if (event.type == KeyPress && event.xkey.keycode == keycode &&
+            if (event.type == xkbEventBase) {
+                auto *xkb = reinterpret_cast<XkbEvent *>(&event);
+                if (observingKeyboard && xkb->any.xkb_type == XkbStateNotify) {
+                    keyboardModifiers = xkb->state.mods; keyboardGroup = xkb->state.group;
+                }
+            } else if (event.type == MappingNotify) {
+                XRefreshKeyboardMapping(&event.xmapping);
+                if (observingKeyboard) readModifierMap();
+            } else if (event.type == KeyPress && event.xkey.keycode == keycode &&
                 (event.xkey.state & ~(LockMask | numLock)) == modifiers) {
                 if (!shortcutDown) { shortcutDown = true; if (onShortcut) onShortcut(); }
             } else if (event.type == KeyRelease && event.xkey.keycode == keycode) {
@@ -143,6 +210,8 @@ class Input {
                         int detail = static_cast<XIRawEvent *>(event.xcookie.data)->detail;
                         if (detail >= 1 && detail <= 3 && onButton) onButton(detail);
                     }
+                    else if (event.xcookie.evtype == XI_RawKeyPress && observingKeyboard)
+                        keyActivity(static_cast<XIRawEvent *>(event.xcookie.data)->detail);
                 }
                 XFreeEventData(display, &event.xcookie);
             }
@@ -152,11 +221,14 @@ class Input {
 public:
     std::function<void()> onMotion, onShortcut;
     std::function<void(int)> onButton;
+    std::function<void(const std::string &)> onKeyboard;
     Input() {
         display = XOpenDisplay(nullptr); if (!display) throw std::runtime_error("Cannot connect to the X11 display.");
         root = DefaultRootWindow(display);
         Bool detectable = False; XkbSetDetectableAutoRepeat(display, True, &detectable);
         int event, error;
+        int xkbOpcode = 0, xkbError = 0, xkbMajor = XkbMajorVersion, xkbMinor = XkbMinorVersion;
+        if (!XkbQueryExtension(display, &xkbOpcode, &xkbEventBase, &xkbError, &xkbMajor, &xkbMinor)) xkbEventBase = 0;
         if (!XQueryExtension(display, "XInputExtension", &opcode, &event, &error)) {
             XCloseDisplay(display); display = nullptr; throw std::runtime_error("XInput2 is required for global pointer observation.");
         }
@@ -197,13 +269,27 @@ public:
         if (activeShortcut >= 0) release(keycode, modifiers);
         activeShortcut = choice; keycode = code; modifiers = mods; shortcutDown = false; return true;
     }
-    bool observe(bool enabled) {
-        if (observing == enabled) return true;
+    bool observe(bool enabled, bool keyboard = false) {
+        keyboard = keyboard && enabled;
+        if (selectionKnown && observing == enabled && observingKeyboard == keyboard) return true;
+        if (keyboard && !xkbEventBase) return false;
         unsigned char mask[XIMaskLen(XI_LASTEVENT)] = {};
         if (enabled) { XISetMask(mask, XI_RawMotion); XISetMask(mask, XI_RawButtonPress); }
+        if (keyboard) XISetMask(mask, XI_RawKeyPress);
         XIEventMask selection {XIAllMasterDevices, static_cast<int>(sizeof(mask)), mask};
-        beginTrap(); XISelectEvents(display, root, &selection, 1); int error = endTrap();
-        if (!error) observing = enabled;
+        beginTrap(); XISelectEvents(display, root, &selection, 1);
+        if (xkbEventBase) XkbSelectEventDetails(display, XkbUseCoreKbd, XkbStateNotify, XkbAllStateComponentsMask, keyboard ? XkbAllStateComponentsMask : 0);
+        int error = endTrap();
+        selectionKnown = error == 0;
+        if (!error) {
+            observing = enabled; observingKeyboard = keyboard;
+            keyboardModifiers = keyboardGroup = 0;
+            if (keyboard) {
+                readModifierMap();
+                XkbStateRec state;
+                if (XkbGetState(display, XkbUseCoreKbd, &state) == Success) { keyboardModifiers = state.mods; keyboardGroup = state.group; }
+            }
+        } else observing = observingKeyboard = false;
         return error == 0;
     }
     bool pointer(int &x, int &y) const {
@@ -211,6 +297,7 @@ public:
         return XQueryPointer(display, root, &rootReturn, &child, &x, &y, &wx, &wy, &mask);
     }
     bool isObserving() const { return observing; }
+    bool isObservingKeyboard() const { return observingKeyboard; }
     int shortcut() const { return activeShortcut; }
     Display *connection() const { return display; }
 };
@@ -275,6 +362,157 @@ struct Overlay {
     void hide() { gtk_widget_hide(window); }
 };
 
+class KeyboardOverlay {
+    GtkWidget *label = nullptr;
+    guint expiration = 0;
+    void passThrough() {
+        auto *native = gtk_widget_get_window(window);
+        if (!native) return;
+        auto *empty = cairo_region_create(); gdk_window_input_shape_combine_region(native, empty, 0, 0);
+        cairo_region_destroy(empty); gdk_window_set_pass_through(native, true);
+    }
+public:
+    GtkWidget *window = nullptr;
+    KeyboardOverlay() {
+        window = gtk_window_new(GTK_WINDOW_POPUP);
+        gtk_window_set_title(GTK_WINDOW(window), "Cursor Halo keyboard activity");
+        gtk_window_set_decorated(GTK_WINDOW(window), false);
+        gtk_window_set_accept_focus(GTK_WINDOW(window), false);
+        gtk_window_set_focus_on_map(GTK_WINDOW(window), false);
+        gtk_window_set_keep_above(GTK_WINDOW(window), true);
+        gtk_window_set_skip_taskbar_hint(GTK_WINDOW(window), true);
+        gtk_window_set_skip_pager_hint(GTK_WINDOW(window), true);
+        gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_NOTIFICATION);
+        gtk_window_stick(GTK_WINDOW(window));
+        auto *visual = gdk_screen_get_rgba_visual(gtk_widget_get_screen(window));
+        if (visual) gtk_widget_set_visual(window, visual);
+        label = gtk_label_new("");
+        gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END);
+        gtk_label_set_max_width_chars(GTK_LABEL(label), 38);
+        gtk_container_add(GTK_CONTAINER(window), label);
+        auto *style = gtk_css_provider_new();
+        gtk_css_provider_load_from_data(style,
+            "window { background-color: rgba(25, 25, 30, 0.94); border-radius: 12px; }"
+            "label { color: white; font: bold 22px sans-serif; padding: 14px 24px; }", -1, nullptr);
+        for (auto *widget : {window, label}) gtk_style_context_add_provider(gtk_widget_get_style_context(widget), GTK_STYLE_PROVIDER(style), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+        g_object_unref(style);
+        // GtkWindow recomputes the input shape of decorated child content at
+        // map/allocation time; restore the empty region after that work.
+        g_signal_connect_after(window, "size-allocate", G_CALLBACK(+[](GtkWidget *, GtkAllocation *, gpointer data) {
+            static_cast<KeyboardOverlay *>(data)->passThrough();
+        }), this);
+        g_signal_connect_after(window, "map-event", G_CALLBACK(+[](GtkWidget *, GdkEvent *, gpointer data) -> gboolean {
+            static_cast<KeyboardOverlay *>(data)->passThrough(); return false;
+        }), this);
+        gtk_widget_realize(window);
+        passThrough();
+    }
+    ~KeyboardOverlay() { clear(); gtk_widget_destroy(window); }
+    void clear() {
+        if (expiration) g_source_remove(expiration);
+        expiration = 0;
+        gtk_widget_hide(window);
+        gtk_label_set_text(GTK_LABEL(label), "");
+    }
+    void show(const std::string &chord, int pointerX, int pointerY) {
+        clear();
+        gtk_label_set_text(GTK_LABEL(label), chord.c_str());
+        gtk_widget_show(label);
+        int scale = gtk_widget_get_scale_factor(window);
+        auto *display = gtk_widget_get_display(window);
+        auto *monitor = gdk_display_get_monitor_at_point(display, pointerX / scale, pointerY / scale);
+        if (!monitor) { clear(); return; }
+        GdkRectangle area; gdk_monitor_get_workarea(monitor, &area);
+        GtkRequisition natural; gtk_widget_get_preferred_size(window, nullptr, &natural);
+        int width = std::min(natural.width, std::max(1, area.width - 32));
+        int height = std::min(natural.height, std::max(1, area.height - 32));
+        gtk_window_resize(GTK_WINDOW(window), width, height);
+        gtk_window_move(GTK_WINDOW(window), area.x + (area.width - width) / 2,
+            area.y + std::max(0, area.height - height - 48));
+        gtk_widget_show(window);
+        expiration = g_timeout_add(1500, +[](gpointer data) -> gboolean {
+            auto *self = static_cast<KeyboardOverlay *>(data); self->expiration = 0; self->clear(); return G_SOURCE_REMOVE;
+        }, this);
+    }
+    std::string text() const { return gtk_label_get_text(GTK_LABEL(label)); }
+    bool hasExpiration() const { return expiration != 0; }
+};
+
+// Desktop screen lockers use different D-Bus names on X11. Keep observation
+// paused while any supported locker is active, including its initial state.
+class SessionActivity {
+    struct State {
+        std::map<std::string, bool> suspended;
+        std::map<std::string, unsigned int> generations;
+        int pending = 0;
+        bool active = false;
+        std::function<void(bool)> changed;
+        void reconcile() {
+            bool next = pending == 0 && std::none_of(suspended.begin(), suspended.end(), [](const auto &item) { return item.second; });
+            if (next != active) { active = next; if (changed) changed(active); }
+        }
+        void set(const std::string &service, bool value) { suspended[service] = value; ++generations[service]; reconcile(); }
+    };
+    struct Query { std::weak_ptr<State> state; std::string service; unsigned int generation; };
+    std::shared_ptr<State> state = std::make_shared<State>();
+    GDBusConnection *session = nullptr, *system = nullptr;
+    GCancellable *cancel = g_cancellable_new();
+    std::vector<std::pair<GDBusConnection *, guint>> subscriptions;
+    void watch(GDBusConnection *connection, const char *service, const char *interface, const char *signal, const char *path) {
+        if (!connection) return;
+        guint id = g_dbus_connection_signal_subscribe(connection, service, interface, signal, path, nullptr, G_DBUS_SIGNAL_FLAGS_NONE,
+            +[](GDBusConnection *, const gchar *, const gchar *, const gchar *interface, const gchar *, GVariant *parameters, gpointer data) {
+                if (!g_variant_is_of_type(parameters, G_VARIANT_TYPE("(b)"))) return;
+                gboolean active; g_variant_get(parameters, "(b)", &active);
+                static_cast<State *>(data)->set(interface, active);
+            }, state.get(), nullptr);
+        subscriptions.emplace_back(connection, id);
+    }
+public:
+    explicit SessionActivity(std::function<void(bool)> changed) {
+        state->changed = std::move(changed);
+        session = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
+        system = g_bus_get_sync(G_BUS_TYPE_SYSTEM, nullptr, nullptr);
+        struct Locker { const char *service; const char *path; };
+        const Locker lockers[] {
+            {"org.freedesktop.ScreenSaver", "/org/freedesktop/ScreenSaver"},
+            {"org.gnome.ScreenSaver", "/org/gnome/ScreenSaver"},
+            {"org.xfce.ScreenSaver", "/org/xfce/ScreenSaver"},
+            {"org.mate.ScreenSaver", "/org/mate/ScreenSaver"},
+            {"org.cinnamon.ScreenSaver", "/org/cinnamon/ScreenSaver"}
+        };
+        if (session) for (const auto &locker : lockers) {
+            watch(session, locker.service, locker.service, "ActiveChanged", locker.path);
+            ++state->pending;
+            auto *query = new Query {state, locker.service, state->generations[locker.service]};
+            g_dbus_connection_call(session, locker.service, locker.path, locker.service, "GetActive", nullptr,
+                G_VARIANT_TYPE("(b)"), G_DBUS_CALL_FLAGS_NO_AUTO_START, 500, cancel,
+                +[](GObject *object, GAsyncResult *result, gpointer data) {
+                    std::unique_ptr<Query> query(static_cast<Query *>(data));
+                    GVariant *reply = g_dbus_connection_call_finish(G_DBUS_CONNECTION(object), result, nullptr);
+                    if (auto state = query->state.lock()) {
+                        if (reply && state->generations[query->service] == query->generation) {
+                            gboolean active; g_variant_get(reply, "(b)", &active); state->suspended[query->service] = active;
+                        }
+                        --state->pending; state->reconcile();
+                    }
+                    if (reply) g_variant_unref(reply);
+                }, query);
+        }
+        watch(system, "org.freedesktop.login1", "org.freedesktop.login1.Manager", "PrepareForSleep", "/org/freedesktop/login1");
+        state->reconcile();
+    }
+    ~SessionActivity() {
+        state->changed = nullptr;
+        g_cancellable_cancel(cancel);
+        for (const auto &[connection, id] : subscriptions) g_dbus_connection_signal_unsubscribe(connection, id);
+        if (session) g_object_unref(session);
+        if (system) g_object_unref(system);
+        g_object_unref(cancel);
+    }
+    bool active() const { return state->active; }
+};
+
 // GtkStatusIcon is retained deliberately for XEmbed-based X11 desktops; settings remain available without a tray.
 G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 class App {
@@ -283,19 +521,22 @@ class App {
     Startup startup;
     bool isolated = false;
     bool updating = false;
-    std::string inputError, saveError, startupError;
+    bool sessionActive = true;
+    std::string inputError, keyboardError, saveError, startupError;
     GtkWidget *settingsWindow = nullptr, *status = nullptr, *enabledControl = nullptr, *styleControl = nullptr,
         *colorControl = nullptr, *diameterControl = nullptr, *opacityControl = nullptr, *strokeControl = nullptr,
-        *clickControl = nullptr, *shortcutControl = nullptr, *startupControl = nullptr, *trayMenu = nullptr, *trayToggle = nullptr;
+        *clickControl = nullptr, *keyboardControl = nullptr, *shortcutControl = nullptr, *startupControl = nullptr, *trayMenu = nullptr, *trayToggle = nullptr;
     GtkStatusIcon *tray = nullptr;
     std::unique_ptr<Input> input;
     std::unique_ptr<Overlay> haloWindow;
+    std::unique_ptr<KeyboardOverlay> keyboardWindow;
+    std::unique_ptr<SessionActivity> sessionActivity;
     std::vector<std::unique_ptr<Overlay>> pulses;
     guint animationSource = 0;
     gulong compositorSignal = 0, monitorSignal = 0;
     void showStatus() {
         std::string message;
-        for (const auto &error : {inputError, startupError, saveError}) if (!error.empty()) message += (message.empty() ? "" : "\n") + error;
+        for (const auto &error : {inputError, keyboardError, startupError, saveError}) if (!error.empty()) message += (message.empty() ? "" : "\n") + error;
         if (message.empty()) message = "Ctrl+Alt+H toggles highlighting by default. Settings stay on this computer.";
         gtk_label_set_text(GTK_LABEL(status), message.c_str());
     }
@@ -311,13 +552,24 @@ class App {
     }
     void refreshRunning() {
         bool composited = gdk_screen_is_composited(gdk_screen_get_default());
-        bool run = settings.enabled && composited;
+        bool run = settings.enabled && composited && sessionActive;
         if (!composited) inputError = "Enable desktop compositing to show transparent overlays. Highlighting is paused.";
         else if (inputError.find("compositing") != std::string::npos) inputError.clear();
-        if (input && !input->observe(run)) inputError = "Pointer observation failed. Pause and re-enable highlighting to retry.";
+        keyboardError.clear();
+        if (input && !input->observe(run, run && settings.keyboard)) {
+            if (run && settings.keyboard && input->observe(run, false))
+                keyboardError = "Keyboard activity is unavailable. Pointer highlighting remains active; turn keyboard activity off and on to retry.";
+            else inputError = "Input observation failed. Pause and re-enable highlighting to retry.";
+        }
+        if ((!run || !settings.keyboard || !input || !input->isObservingKeyboard()) && keyboardWindow) keyboardWindow->clear();
         if (run && input && input->isObserving() && haloWindow) moveHalo();
         else { if (haloWindow) haloWindow->hide(); clearPulses(); }
         showStatus();
+    }
+    void keyboardActivity(const std::string &chord) {
+        if (!settings.enabled || !settings.keyboard || !input || !input->isObservingKeyboard() || !keyboardWindow) return;
+        int x, y;
+        if (input->pointer(x, y)) keyboardWindow->show(chord, x, y);
     }
     void moveHalo() {
         int x, y; if (input && input->isObserving() && haloWindow && input->pointer(x, y)) haloWindow->place(x, y, settings);
@@ -365,6 +617,7 @@ class App {
         next.diameter = gtk_spin_button_get_value(GTK_SPIN_BUTTON(diameterControl));
         next.opacity = gtk_spin_button_get_value(GTK_SPIN_BUTTON(opacityControl)) / 100.0;
         next.stroke = gtk_spin_button_get_value(GTK_SPIN_BUTTON(strokeControl)); next.clicks = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(clickControl));
+        next.keyboard = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(keyboardControl));
         next.shortcut = gtk_combo_box_get_active(GTK_COMBO_BOX(shortcutControl)); next = halo::sanitize(next);
         if (next.shortcut != settings.shortcut || (input && input->shortcut() < 0)) {
             if (!input || !input->setShortcut(next.shortcut)) {
@@ -380,6 +633,7 @@ class App {
         gtk_spin_button_set_value(GTK_SPIN_BUTTON(diameterControl), settings.diameter);
         gtk_spin_button_set_value(GTK_SPIN_BUTTON(opacityControl), settings.opacity * 100); gtk_spin_button_set_value(GTK_SPIN_BUTTON(strokeControl), settings.stroke);
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(clickControl), settings.clicks); gtk_combo_box_set_active(GTK_COMBO_BOX(shortcutControl), settings.shortcut);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(keyboardControl), settings.keyboard);
         if (trayToggle) gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(trayToggle), settings.enabled);
         updating = false;
     }
@@ -414,6 +668,11 @@ class App {
         diameterControl = spin(box, "Diameter", 28, 120, 2); opacityControl = spin(box, "Opacity (%)", 20, 100, 5); strokeControl = spin(box, "Stroke width", 1, 8, 1);
         clickControl = gtk_check_button_new_with_label("Show click feedback"); gtk_box_pack_start(GTK_BOX(box), clickControl, false, false, 0);
         g_signal_connect(clickControl, "toggled", G_CALLBACK(+[](GtkWidget *, gpointer data) { static_cast<App *>(data)->changed(); }), this);
+        keyboardControl = gtk_check_button_new_with_label("Show keyboard activity"); gtk_box_pack_start(GTK_BOX(box), keyboardControl, false, false, 0);
+        g_signal_connect(keyboardControl, "toggled", G_CALLBACK(+[](GtkWidget *, gpointer data) { static_cast<App *>(data)->changed(); }), this);
+        auto *keyboardHint = gtk_label_new("Briefly shows Ctrl, Alt, and Super shortcuts. Ordinary typing is hidden. Nothing is recorded.");
+        gtk_label_set_line_wrap(GTK_LABEL(keyboardHint), true); gtk_label_set_max_width_chars(GTK_LABEL(keyboardHint), 45);
+        gtk_label_set_xalign(GTK_LABEL(keyboardHint), 0); gtk_box_pack_start(GTK_BOX(box), keyboardHint, false, false, 0);
         shortcutControl = combo(box, "Toggle shortcut", {"Ctrl + Alt + H", "Ctrl + Alt + C", "Ctrl + Shift + H"});
         startupControl = gtk_check_button_new_with_label("Launch at login"); gtk_box_pack_start(GTK_BOX(box), startupControl, false, false, 0);
         g_signal_connect(startupControl, "toggled", G_CALLBACK(+[](GtkWidget *widget, gpointer data) {
@@ -429,6 +688,7 @@ class App {
         auto *reset = gtk_button_new_with_label("Reset appearance"); gtk_box_pack_start(GTK_BOX(buttons), reset, true, true, 0);
         g_signal_connect(reset, "clicked", G_CALLBACK(+[](GtkWidget *, gpointer data) {
             auto *self = static_cast<App *>(data); Settings next; next.enabled = self->settings.enabled; next.shortcut = self->settings.shortcut;
+            next.keyboard = self->settings.keyboard;
             self->settings = next; self->updateControls(); self->refreshRunning(); self->save();
         }), this);
         auto *quitButton = gtk_button_new_with_label("Quit"); gtk_box_pack_end(GTK_BOX(buttons), quitButton, false, false, 0);
@@ -463,19 +723,24 @@ public:
         if (!isolated) try { settings = halo::parse(readFile(preferencePath)); } catch (const std::exception &error) { saveError = error.what(); }
         buildSettings();
         try {
-            input = std::make_unique<Input>(); haloWindow = std::make_unique<Overlay>();
+            input = std::make_unique<Input>(); haloWindow = std::make_unique<Overlay>(); keyboardWindow = std::make_unique<KeyboardOverlay>();
             input->onMotion = [this] { ++motionEvents; moveHalo(); }; input->onButton = [this](int button) { click(button); };
             input->onShortcut = [this] { ++shortcutEvents; toggle(); };
+            input->onKeyboard = [this](const std::string &chord) { keyboardActivity(chord); };
             if (!input->setShortcut(settings.shortcut)) inputError = "The toggle shortcut is already in use. Choose another combination.";
         } catch (const std::exception &error) { inputError = error.what(); }
+        sessionActivity = std::make_unique<SessionActivity>([this](bool active) { sessionActive = active; refreshRunning(); });
+        sessionActive = sessionActivity->active();
         auto *screen = gdk_screen_get_default();
         compositorSignal = g_signal_connect(screen, "composited-changed", G_CALLBACK(+[](GdkScreen *, gpointer data) { static_cast<App *>(data)->refreshRunning(); }), this);
-        monitorSignal = g_signal_connect(screen, "monitors-changed", G_CALLBACK(+[](GdkScreen *, gpointer data) { static_cast<App *>(data)->moveHalo(); }), this);
+        monitorSignal = g_signal_connect(screen, "monitors-changed", G_CALLBACK(+[](GdkScreen *, gpointer data) {
+            auto *self = static_cast<App *>(data); self->moveHalo(); if (self->keyboardWindow) self->keyboardWindow->clear();
+        }), this);
         if (!isolated) buildTray();
         refreshRunning();
     }
     ~App() {
-        clearPulses(); input.reset(); haloWindow.reset();
+        sessionActivity.reset(); clearPulses(); input.reset(); haloWindow.reset(); keyboardWindow.reset();
         auto *screen = gdk_screen_get_default(); if (compositorSignal) g_signal_handler_disconnect(screen, compositorSignal); if (monitorSignal) g_signal_handler_disconnect(screen, monitorSignal);
         if (tray) { g_signal_handlers_disconnect_by_data(tray, this); gtk_status_icon_set_visible(tray, false); g_object_unref(tray); }
         if (trayMenu) gtk_widget_destroy(trayMenu);
@@ -491,6 +756,8 @@ public:
     Input *eventSource() const { return input.get(); }
     size_t pulseCount() const { return pulses.size(); }
     bool animating() const { return animationSource != 0; }
+    KeyboardOverlay *keyboardOverlay() const { return keyboardWindow.get(); }
+    void setKeyboardActivity(bool enabled) { settings.keyboard = enabled; updateControls(); refreshRunning(); save(); }
 };
 
 G_GNUC_END_IGNORE_DEPRECATIONS
@@ -512,6 +779,7 @@ static int smoke(const fs::path &output) {
         auto shortcut = [&] { key(XK_Control_L, true); key(XK_Alt_L, true); key(XK_h, true); key(XK_h, false); key(XK_Alt_L, false); key(XK_Control_L, false); XFlush(display); pump(); };
         {
             App app(nullptr, true);
+            pump(550); // Complete initial screen-lock state queries on the isolated bus.
             require(app.eventSource() && app.overlay() && app.eventSource()->isObserving(), "Native event source and overlay must initialize.");
             app.showSettings(); pump(); require(gtk_widget_get_visible(app.window()), "Settings window must render.");
             if (!output.empty()) {
@@ -526,8 +794,12 @@ static int smoke(const fs::path &output) {
             gtk_widget_hide(app.window()); pump(); checks.push_back("Native settings rendered with isolated state");
             GtkWidget *target = gtk_window_new(GTK_WINDOW_TOPLEVEL); gtk_window_set_default_size(GTK_WINDOW(target), 600, 400);
             gtk_window_move(GTK_WINDOW(target), 100, 100); gtk_widget_add_events(target, GDK_BUTTON_PRESS_MASK);
-            int targetClicks = 0;
+            int targetClicks = 0, targetShortcuts = 0;
             g_signal_connect(target, "button-press-event", G_CALLBACK(+[](GtkWidget *, GdkEventButton *, gpointer data) -> gboolean { ++*static_cast<int *>(data); return true; }), &targetClicks);
+            g_signal_connect(target, "key-press-event", G_CALLBACK(+[](GtkWidget *, GdkEventKey *event, gpointer data) -> gboolean {
+                if ((event->state & GDK_CONTROL_MASK) && event->keyval == GDK_KEY_c) ++*static_cast<int *>(data);
+                return false;
+            }), &targetShortcuts);
             gtk_widget_show_all(target); gtk_window_present(GTK_WINDOW(target)); pump(150);
             Window focusBefore; int revert; XGetInputFocus(display, &focusBefore, &revert);
             int originX, originY; gdk_window_get_origin(gtk_widget_get_window(target), &originX, &originY);
@@ -547,12 +819,69 @@ static int smoke(const fs::path &output) {
             checks.push_back("Pointer clicks reach the underlying window and create bounded feedback");
             pump(500); require(app.pulseCount() == 0 && !app.animating(), "Animation timer must stop after feedback expires.");
             checks.push_back("Click feedback expires and leaves no idle animation timer");
+            auto chord = [&] {
+                key(XK_Control_L, true); key(XK_c, true); key(XK_c, false); key(XK_Control_L, false); XFlush(display); pump(100);
+            };
+            require(!app.settings.keyboard && !app.eventSource()->isObservingKeyboard(), "Keyboard activity must be off by default.");
+            chord(); require(app.keyboardOverlay()->text().empty(), "Disabled keyboard display must ignore shortcuts.");
+            app.setKeyboardActivity(true);
+            require(app.eventSource()->isObservingKeyboard(), "Enabling keyboard activity must subscribe to key events.");
+            key(XK_a, true); key(XK_a, false); key(XK_Shift_L, true); key(XK_a, true); key(XK_a, false); key(XK_Shift_L, false); XFlush(display); pump();
+            require(app.keyboardOverlay()->text().empty(), "Plain and Shift-only typing must never be displayed.");
+            if (XKeysymToKeycode(display, XK_ISO_Level3_Shift)) {
+                key(XK_ISO_Level3_Shift, true); key(XK_Control_L, true); key(XK_q, true); key(XK_q, false); key(XK_Control_L, false); key(XK_ISO_Level3_Shift, false); XFlush(display); pump();
+                require(app.keyboardOverlay()->text().empty(), "AltGr layout input must not appear as a shortcut.");
+                checks.push_back("Native AltGr key input is excluded from shortcut display");
+            }
+            int shortcutsBefore = targetShortcuts;
+            chord(); require(app.keyboardOverlay()->text() == "Ctrl + C" && gtk_widget_get_visible(app.keyboardOverlay()->window), "An application shortcut must display its chord.");
+            require(targetShortcuts == shortcutsBefore + 1, "Keyboard observation must pass application shortcuts to the focused window.");
+            key(XK_Alt_L, true); key(XK_c, true); key(XK_c, false); key(XK_Alt_L, false); XFlush(display); pump();
+            require(app.keyboardOverlay()->text() == "Alt + C", "Alt must not also be labeled Super on keymaps with a Meta alias.");
+            key(XK_Super_L, true); key(XK_c, true); key(XK_c, false); key(XK_Super_L, false); XFlush(display); pump();
+            require(app.keyboardOverlay()->text() == "Super + C", "Super shortcuts must retain their own modifier label.");
+            if (!output.empty()) {
+                auto *native = gtk_widget_get_window(app.keyboardOverlay()->window);
+                auto *capture = gdk_pixbuf_get_from_window(native, 0, 0, gdk_window_get_width(native), gdk_window_get_height(native));
+                require(capture != nullptr, "Keyboard indicator must render into a capturable window.");
+                bool saved = gdk_pixbuf_save(capture, (output.parent_path() / "keyboard.png").c_str(), "png", nullptr, nullptr);
+                g_object_unref(capture); require(saved, "Keyboard indicator screenshot must save.");
+            }
+            XGetInputFocus(display, &focusAfter, &revert);
+            require(focusAfter == focusBefore && !gtk_window_get_accept_focus(GTK_WINDOW(app.keyboardOverlay()->window)), "Keyboard indicator must not take focus.");
+            rectangles = XShapeGetRectangles(display, GDK_WINDOW_XID(gtk_widget_get_window(app.keyboardOverlay()->window)), ShapeInput, &rectangleCount, &ordering);
+            if (rectangles) XFree(rectangles);
+            require(rectangleCount == 0, "Keyboard indicator input region must be empty.");
+            pump(1550); require(app.keyboardOverlay()->text().empty() && !app.keyboardOverlay()->hasExpiration() && !gtk_widget_get_visible(app.keyboardOverlay()->window), "Keyboard display must expire and discard its label and timer.");
+            chord(); app.setKeyboardActivity(false);
+            require(!app.eventSource()->isObservingKeyboard() && app.keyboardOverlay()->text().empty() && !app.keyboardOverlay()->hasExpiration(), "Turning keyboard activity off must detach and immediately clear feedback.");
+            app.setKeyboardActivity(true); chord();
+            GDBusConnection *sessionBus = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
+            require(sessionBus != nullptr, "The isolated session bus must be available.");
+            GVariant *owned = g_dbus_connection_call_sync(sessionBus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "RequestName",
+                g_variant_new("(su)", "org.freedesktop.ScreenSaver", 0u), G_VARIANT_TYPE("(u)"), G_DBUS_CALL_FLAGS_NONE, 1000, nullptr, nullptr);
+            require(owned != nullptr, "Test screen locker name must be acquired."); g_variant_unref(owned); pump();
+            auto locked = [&](bool value) {
+                g_dbus_connection_emit_signal(sessionBus, nullptr, "/org/freedesktop/ScreenSaver", "org.freedesktop.ScreenSaver", "ActiveChanged", g_variant_new("(b)", value), nullptr);
+                g_dbus_connection_flush_sync(sessionBus, nullptr, nullptr); pump();
+            };
+            locked(true);
+            require(!app.eventSource()->isObservingKeyboard() && app.keyboardOverlay()->text().empty() && !app.keyboardOverlay()->hasExpiration(), "Screen lock must detach keyboard observation and discard the indicator.");
+            locked(false); require(app.eventSource()->isObservingKeyboard(), "Unlock must restore opted-in keyboard observation.");
+            GVariant *released = g_dbus_connection_call_sync(sessionBus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "ReleaseName",
+                g_variant_new("(s)", "org.freedesktop.ScreenSaver"), G_VARIANT_TYPE("(u)"), G_DBUS_CALL_FLAGS_NONE, 1000, nullptr, nullptr);
+            if (released) g_variant_unref(released);
+            g_object_unref(sessionBus); chord();
+            checks.push_back("Screen-lock signals remove keyboard observation and feedback until unlock");
+            checks.push_back("Opt-in keyboard shortcuts exclude plain typing, preserve focus/input, and expire without retained history");
             {
                 Input competitor; require(competitor.setShortcut(1), "Competing shortcut should register.");
                 require(!app.eventSource()->setShortcut(1) && app.eventSource()->shortcut() == 0, "A shortcut conflict must preserve the active shortcut.");
                 shortcut(); require(!app.settings.enabled && app.shortcutEvents == 1 && !app.eventSource()->isObserving(), "Original hotkey must pause highlighting and pointer observation after conflict.");
                 require(!gtk_widget_get_visible(app.overlay()->window), "Paused halo must be hidden.");
+                require(!app.eventSource()->isObservingKeyboard() && app.keyboardOverlay()->text().empty(), "Pause must detach keyboard observation and clear its indicator.");
                 shortcut(); require(app.settings.enabled && app.shortcutEvents == 2, "Global hotkey must resume highlighting.");
+                require(app.eventSource()->isObservingKeyboard(), "Resuming highlighting must restore opted-in keyboard observation.");
             }
             checks.push_back("Global shortcut conflict preserves the working key; pause removes observation");
             app.pause(); gtk_widget_destroy(target); pump();

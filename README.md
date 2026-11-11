@@ -14,6 +14,7 @@
 
 - A high-contrast ring or soft disc around the pointer, with five colors and adjustable size, opacity, and stroke.
 - Click ripples that stay where you clicked, with a contrasting color for secondary clicks.
+- Optional keyboard activity on macOS, Windows, and Linux X11: briefly display the latest shortcut while keeping ordinary typing hidden.
 - A global keyboard toggle, a menu-bar/tray control, and saved local preferences.
 - Optional launch at login for the standalone apps, disabled by default. GNOME loads an enabled extension at login.
 - Click-through overlays that cannot take keyboard focus.
@@ -46,6 +47,7 @@ Each archive has a SHA-256 checksum file. On macOS use `shasum -a 256 <archive.z
 - Open settings from the menu-bar, notification-area, or GNOME panel icon.
 - **Control–Option–H** on Mac, or **Ctrl–Alt–H** on Windows and Linux, toggles highlighting. Alternative H/C shortcuts are available in settings.
 - Adjust ring/disc, color, size, opacity, stroke, and click feedback. Appearance changes apply immediately.
+- Enable **Show keyboard activity** to display the latest shortcut for 1.5 seconds at the bottom of the display containing the pointer. It is off by default and pauses with highlighting. On Mac, use **Allow Input Monitoring** if prompted in settings, grant access in System Settings, and restart the app if macOS requires it. GNOME Wayland does not support this option.
 - Enable **Launch at login** only when you want automatic startup. macOS may require approval in Login Items. Windows registers a per-user startup command; Windows Startup Apps can independently disable it, so check that page if it does not start.
 - Use **Reset appearance** to restore the visual defaults, or **Quit** to remove the overlay and stop the app.
 
@@ -100,7 +102,7 @@ The GNOME extension is a separate implementation in `linux/gnome/`, using GJS an
 
 ## Privacy and maintenance
 
-Pointer events are used transiently for drawing and are not logged. Shortcuts register specific combinations; the app does not capture typed text. Settings remain on your machine. There is no automatic updater.
+Pointer events are used transiently for drawing and are not logged. The highlight toggle registers a specific shortcut. Enabling keyboard activity additionally observes keyboard events to show the latest shortcut; ordinary typing is filtered out and key events are never saved, logged, or transmitted. Only the latest shortcut label is kept briefly for drawing. macOS requires Input Monitoring permission for this optional feature. Settings remain on your machine. There is no automatic updater.
 
 To uninstall, disable **Launch at login**, quit, and remove the app directory. Appearance preferences can be retained for a later reinstall. See platform installation instructions before removing an installed copy.
 

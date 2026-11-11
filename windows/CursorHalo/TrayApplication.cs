@@ -33,6 +33,7 @@ internal sealed class TrayApplication : ApplicationContext
         overlay = new OverlayController(receiver.Handle);
         overlay.Failed += message => { overlayError = message; ShowError(); };
         receiver.PointerUpdated += overlay.HandlePointerUpdate;
+        receiver.KeyboardUpdated += overlay.HandleKeyboardUpdate;
         receiver.ToggleRequested += Toggle;
         receiver.SettingsRequested += ShowSettings;
         var settingsItem = new ToolStripMenuItem("Settings…", null, (_, _) => ShowSettings());

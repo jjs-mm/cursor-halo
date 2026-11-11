@@ -2,8 +2,8 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y \
+COPY install-ci-dependencies.sh /usr/local/bin/install-ci-dependencies
+RUN bash /usr/local/bin/install-ci-dependencies \
        bash python3 nodejs dbus dbus-x11 gjs gnome-shell gnome-shell-extension-prefs \
        xwayland gsettings-desktop-schemas libgl1-mesa-dri mesa-utils librsvg2-common fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*

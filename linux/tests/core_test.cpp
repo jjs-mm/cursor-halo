@@ -6,7 +6,18 @@ static int checks = 0;
 #include <limits>
 int main() {
     auto defaults = halo::parse("");
-    CHECK(defaults.enabled && defaults.clicks && defaults.diameter == 56 && defaults.opacity == .85);
+    CHECK(defaults.enabled && defaults.clicks && !defaults.keyboard && defaults.diameter == 56 && defaults.opacity == .85);
+    CHECK(!halo::parse("keyboard=TRUE\n").keyboard);
+    CHECK(halo::parse("keyboard=true\n").keyboard);
+    CHECK(halo::parse(halo::serialize(halo::parse("keyboard=true\n"))).keyboard);
+    CHECK(halo::keyboardChord("C", true, false, false, false) == "Ctrl + C");
+    CHECK(halo::keyboardChord("Tab", false, true, false, true) == "Alt + Shift + Tab");
+    CHECK(halo::keyboardChord("Left", true, false, true, true) == "Ctrl + Super + Shift + Left");
+    CHECK(halo::keyboardChord("A", false, false, false, false).empty());
+    CHECK(halo::keyboardChord("A", false, false, false, true).empty());
+    CHECK(halo::keyboardChord("Q", true, true, false, false, true).empty());
+    CHECK(halo::keyboardChord("", true, false, false, false).empty());
+    CHECK(halo::keyboardChord(std::string(49, 'A'), true, false, false, false).empty());
     auto s = halo::parse("diameter=900\nopacity=-4\nstroke=nan\nenabled=FALSE\nclicks=false\nstyle=triangle\ncolor=pink\nshortcut=ctrl-shift-h\n");
     CHECK(s.diameter == 120 && s.opacity == .2 && s.stroke == 3 && s.enabled && !s.clicks && s.style == 0 && s.color == 3 && s.shortcut == 2);
     s = halo::parse("diameter=56oops\nopacity=inf\nstroke= 4\n");

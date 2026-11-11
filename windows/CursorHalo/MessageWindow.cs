@@ -18,6 +18,7 @@ internal sealed class MessageWindow : NativeWindow, IDisposable
     internal event Action? ToggleRequested;
     internal event Action? SettingsRequested;
     internal event Action? PointerUpdated;
+    internal event Action? KeyboardUpdated;
 
     internal MessageWindow()
     {
@@ -54,6 +55,7 @@ internal sealed class MessageWindow : NativeWindow, IDisposable
         {
             case Native.WmHotKey when activeHotKeyId != 0 && message.WParam == activeHotKeyId: ToggleRequested?.Invoke(); return;
             case Native.WmPointerUpdate: PointerUpdated?.Invoke(); return;
+            case Native.WmKeyboardUpdate: KeyboardUpdated?.Invoke(); return;
             case Native.WmAction:
                 while (actions.TryDequeue(out var action)) action();
                 return;

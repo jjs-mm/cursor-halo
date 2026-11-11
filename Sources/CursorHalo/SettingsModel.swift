@@ -49,9 +49,11 @@ final class SettingsModel: ObservableObject {
         }
     }
     @Published var showsClicks: Bool { didSet { save() } }
+    @Published var showsKeyboardActivity: Bool { didSet { save() } }
     @Published var shortcut: ToggleShortcut { didSet { save() } }
     @Published var shortcutError: String?
     @Published var monitoringError: String?
+    @Published var keyboardMonitoringError: String?
 
     init(defaults: SettingsStoring = UserDefaults.standard) {
         self.defaults = defaults
@@ -62,6 +64,7 @@ final class SettingsModel: ObservableObject {
         opacity = Self.number(defaults.object(forKey: "opacity"), range: 0.2...1, fallback: 0.85)
         lineWidth = Self.number(defaults.object(forKey: "lineWidth"), range: 1...8, fallback: 3)
         showsClicks = Self.boolean(defaults.object(forKey: "showsClicks"), fallback: true)
+        showsKeyboardActivity = Self.boolean(defaults.object(forKey: "showsKeyboardActivity"), fallback: false)
         shortcut = ToggleShortcut(rawValue: defaults.object(forKey: "shortcut") as? String ?? "") ?? .controlOptionH
     }
 
@@ -87,6 +90,7 @@ final class SettingsModel: ObservableObject {
         defaults.set(opacity, forKey: "opacity")
         defaults.set(lineWidth, forKey: "lineWidth")
         defaults.set(showsClicks, forKey: "showsClicks")
+        defaults.set(showsKeyboardActivity, forKey: "showsKeyboardActivity")
         defaults.set(shortcut.rawValue, forKey: "shortcut")
         onChange?()
     }

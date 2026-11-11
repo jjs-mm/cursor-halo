@@ -10,11 +10,12 @@ struct SettingsModelTests {
         let store = MemorySettingsStore(values: [
             "enabled": "false", "showsClicks": 0, "diameter": "90",
             "opacity": true, "lineWidth": [2], "style": "unsupported",
-            "color": 5, "shortcut": false
+            "color": 5, "shortcut": false, "showsKeyboardActivity": "true"
         ])
         let model = SettingsModel(defaults: store)
         #expect(model.isEnabled)
         #expect(model.showsClicks)
+        #expect(!model.showsKeyboardActivity)
         #expect(model.diameter == 56)
         #expect(model.opacity == 0.85)
         #expect(model.lineWidth == 3)
@@ -34,6 +35,7 @@ struct SettingsModelTests {
         let model = SettingsModel(defaults: store)
         #expect(!model.isEnabled)
         #expect(!model.showsClicks)
+        #expect(!model.showsKeyboardActivity)
         #expect(model.diameter == 80)
         #expect(model.opacity == 0.6)
         #expect(model.lineWidth == 5.5)
@@ -75,6 +77,7 @@ struct SettingsModelTests {
         model.style = .disc
         model.color = .blue
         model.diameter = 100
+        model.showsKeyboardActivity = true
         model.resetAppearance()
 
         let restored = SettingsModel(defaults: store)
@@ -84,6 +87,21 @@ struct SettingsModelTests {
         #expect(restored.color == .amber)
         #expect(restored.diameter == 56)
         #expect(restored.showsClicks)
+        #expect(restored.showsKeyboardActivity)
+    }
+
+    @Test
+    func keyboardActivityRequiresOptInAndPersistsTurningOff() {
+        let store = MemorySettingsStore()
+        let model = SettingsModel(defaults: store)
+        #expect(!model.showsKeyboardActivity)
+        var changes = 0
+        model.onChange = { changes += 1 }
+        model.showsKeyboardActivity = true
+        #expect(SettingsModel(defaults: store).showsKeyboardActivity)
+        model.showsKeyboardActivity = false
+        #expect(!SettingsModel(defaults: store).showsKeyboardActivity)
+        #expect(changes == 2)
     }
 }
 

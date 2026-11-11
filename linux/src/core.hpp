@@ -18,6 +18,7 @@ struct Settings {
     double opacity = .85;
     double stroke = 3;
     bool clicks = true;
+    bool keyboard = false;
     int shortcut = 0;
 };
 inline double finiteClamp(double value, double low, double high, double fallback) {
@@ -59,6 +60,7 @@ inline Settings parse(const std::string &text) {
         auto it = items.find(key); return it == items.end() ? fallback : it->second == "true" ? true : it->second == "false" ? false : fallback;
     };
     s.enabled = boolean("enabled", true); s.clicks = boolean("clicks", true);
+    s.keyboard = boolean("keyboard", false);
     s.style = option(items["style"], styles); s.color = option(items["color"], colors);
     s.shortcut = option(items["shortcut"], shortcuts);
     s.diameter = number(items["diameter"], 56); s.opacity = number(items["opacity"], .85); s.stroke = number(items["stroke"], 3);
@@ -69,7 +71,8 @@ inline std::string serialize(Settings s) {
     out << std::setprecision(8) << "enabled=" << (s.enabled ? "true" : "false")
         << "\nstyle=" << styles[s.style] << "\ncolor=" << colors[s.color]
         << "\ndiameter=" << s.diameter << "\nopacity=" << s.opacity << "\nstroke=" << s.stroke
-        << "\nclicks=" << (s.clicks ? "true" : "false") << "\nshortcut=" << shortcuts[s.shortcut] << '\n';
+        << "\nclicks=" << (s.clicks ? "true" : "false") << "\nkeyboard=" << (s.keyboard ? "true" : "false")
+        << "\nshortcut=" << shortcuts[s.shortcut] << '\n';
     return out.str();
 }
 inline std::string desktopExec(const std::string &path) {
@@ -84,6 +87,17 @@ inline std::string desktopExec(const std::string &path) {
     return result + "\" --background";
 }
 struct Frame { int x, y, side; };
+// A single shortcut label is retained only for the visible indicator. Ordinary
+// typing, Shift-only typing, and layout modifiers such as AltGr are excluded.
+inline std::string keyboardChord(const std::string &key, bool control, bool alt, bool super, bool shift, bool layoutModifier = false) {
+    if (key.empty() || key.size() > 48 || layoutModifier || (!control && !alt && !super)) return {};
+    std::string result;
+    if (control) result += "Ctrl + ";
+    if (alt) result += "Alt + ";
+    if (super) result += "Super + ";
+    if (shift) result += "Shift + ";
+    return result + key;
+}
 inline Frame frame(int x, int y, double diameter, int scale, bool pulse = false) {
     scale = std::clamp(scale, 1, 8);
     int side = static_cast<int>(std::ceil(finiteClamp(diameter, 28, 120, 56) * (pulse ? 2 : 1) + 20));

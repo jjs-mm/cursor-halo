@@ -10,6 +10,8 @@ Pointer events drive position updates. Each click owns a short-lived pulse with 
 
 Shortcut replacement is transactional: an unavailable replacement must not remove a working registration. Login registration is read from macOS and is not mirrored into a potentially stale settings Boolean.
 
+Optional keyboard activity is independent of the registered toggle shortcut. A passive, listen-only keyboard event tap runs only while the feature and highlighting are enabled and the session is active. Input Monitoring permission is requested only through an explicit settings action. A formatter filters ordinary typing before a single nonactivating panel displays the latest chord; one expiring cleanup replaces the previous one. Secure input suppresses shortcut display.
+
 ## Windows
 
 `windows/CursorHalo.Core/` holds settings validation, persistence, and platform-independent behavior. `windows/CursorHalo/` contains the WinForms settings/tray UI and Win32 integrations. `windows/CursorHalo.Tests/` is a dependency-free core test executable.
@@ -17,6 +19,8 @@ Shortcut replacement is transactional: an unavailable replacement must not remov
 A low-level mouse hook forwards bounded/coalesced work to the UI rather than rendering or writing settings inside the callback. Layered windows provide per-pixel alpha and non-activating, click-through feedback. Per-monitor DPI converts logical dimensions to physical pixels while preserving virtual-desktop coordinates. Animation work exists only while click feedback is active.
 
 The startup entry is per user. Registry presence expresses this app's registration intent; the Windows Startup Apps UI can independently disable launching. That external approval state is not inferred from undocumented registry layouts.
+
+Optional keyboard activity uses a separate passive low-level keyboard hook and a bounded latest-shortcut display. It suppresses ordinary typing and AltGr, passes every event through, and clears its overlay when observation is stopped.
 
 ## Linux
 
@@ -27,6 +31,8 @@ The startup entry is per user. Registry presence expresses this app's registrati
 Ubuntu 26.04 LTS and 26.10 GNOME sessions use the extension: an XWayland connection cannot make the standalone X11 app observe native Wayland clients. The generic `gnome-shell.zip` archive contains the same extension code and metadata for every declared Shell major and both architectures.
 
 The app and extension have separate settings stores and lifecycle controls. Do not run both simultaneously. KDE Plasma Wayland and other Wayland compositors need their own integration; they are not covered by the X11 or GNOME implementations.
+
+The X11 app can optionally display shortcut activity using XInput2 key events and ordered XKB state notifications. Common desktop screen-lock D-Bus signals and logind sleep signals suspend observation. Locker integration needs desktop-specific verification because X11 has no universal lock-screen API; if a locker exits while reporting a locked state, restarting Cursor Halo clears the stale suspension. The GNOME extension explicitly marks this feature unavailable: Shell stage events cannot reliably observe keys delivered to native Wayland clients, and registering arbitrary shortcuts would intercept application input.
 
 ## Distribution
 
