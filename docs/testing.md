@@ -45,6 +45,8 @@ Record the OS version, architecture, display arrangement/scaling, app build, and
 - Click, double-click, right-click, drag, and type in another application. Input must reach that application and keyboard focus must stay there.
 - Change all appearance controls, use extreme sizes/opacities, quit, and reopen. Preferences persist without clipping the settings UI.
 - Toggle with a physical keyboard while another app is active. Try an unavailable shortcut and recover without losing a clear way to toggle the app.
+- Enable **Show keyboard activity** on macOS, Windows, or X11. Verify shortcuts appear for 1.5 seconds on the pointer's display, replace earlier labels, and reach the focused app without taking focus. Verify ordinary/Shift-only typing, modifier-only presses, Option text entry on Mac, and AltGr text entry on Windows/X11 do not appear. Disable the setting, pause, and quit while a label is visible: it should disappear immediately. Reset appearance must preserve the opt-in, and relaunch must restore it.
+- On macOS, verify permission denial keeps pointer highlighting usable, permission approval/relaunch enables shortcuts, and secure input suppresses keyboard display. On GNOME, verify preferences clearly explain keyboard activity is unavailable; do not treat shortcuts captured only over Shell UI as desktop-wide support.
 - Pause highlighting and quit. No visible overlay or input observation should remain.
 - Lock/unlock, sleep/wake, connect/disconnect a display, and switch desktops/Spaces. Verify the app resumes correctly without appearing on secure/sign-in surfaces.
 - Test reduced animation, high-contrast/accessibility preferences, and keyboard navigation of settings.

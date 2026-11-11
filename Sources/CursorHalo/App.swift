@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = SettingsModel()
     private let loginItem = LoginItemModel()
     private let overlay = OverlayController()
+    private let keyboardActivity = KeyboardActivityController()
     private let shortcut = GlobalShortcut()
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
@@ -43,9 +44,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.behavior = .transient
         popover.animates = true
         popover.contentViewController = NSHostingController(rootView:
-            SettingsView(settings: settings, loginItem: loginItem, quit: { NSApp.terminate(nil) }))
+            SettingsView(settings: settings, loginItem: loginItem,
+                requestKeyboardPermission: { [weak self] in self?.keyboardActivity.requestPermission() },
+                quit: { NSApp.terminate(nil) }))
         settings.onChange = { [weak self] in self?.applySettings() }
         overlay.onMonitoringError = { [weak self] in self?.settings.monitoringError = $0 }
+        keyboardActivity.onMonitoringError = { [weak self] in self?.settings.keyboardMonitoringError = $0 }
         shortcut.onToggle = { [weak self] in self?.settings.isEnabled.toggle() }
         applySettings()
 
@@ -62,16 +66,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         loginItem.refresh()
+        keyboardActivity.refreshPermission()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         DistributedNotificationCenter.default().removeObserver(self)
         overlay.stop()
+        keyboardActivity.stop()
         shortcut.unregister()
     }
 
     private func applySettings() {
         overlay.update(configuration: settings.configuration)
+        keyboardActivity.update(enabled: settings.isEnabled && settings.showsKeyboardActivity)
         let requestedShortcut = settings.shortcut
         let status = shortcut.register(requestedShortcut)
         if status == noErr {
@@ -108,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showSettings() {
         guard let button = statusItem?.button else { return }
         loginItem.refresh()
+        keyboardActivity.refreshPermission()
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.acceptsMouseMovedEvents = true

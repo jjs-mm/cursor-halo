@@ -11,6 +11,7 @@ internal sealed class SettingsForm : Form
     private readonly Func<bool, string?> setStartup;
     private readonly CheckBox enabled = new() { Text = "Highlight cursor", AutoSize = true };
     private readonly CheckBox clicks = new() { Text = "Show click feedback", AutoSize = true };
+    private readonly CheckBox keyboard = new() { Text = "Show keyboard activity", AutoSize = true };
     private readonly CheckBox login = new() { Text = "Launch at login", AutoSize = true };
     private readonly ComboBox style = new() { DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly ComboBox color = new() { DropDownStyle = ComboBoxStyle.DropDownList };
@@ -60,6 +61,8 @@ internal sealed class SettingsForm : Form
         Add(layout, SliderRow("Stroke", stroke, strokeValue));
         Add(layout, clicks);
         Add(layout, new Label { Text = "Right-clicks use a contrasting color. Windows animation settings are respected.", AutoSize = true, MaximumSize = new Size(350, 0), ForeColor = SystemColors.GrayText, Font = new Font(Font.FontFamily, 9) });
+        Add(layout, keyboard);
+        Add(layout, new Label { Text = "Briefly displays Ctrl, Alt, or Win shortcuts. Ordinary typing and AltGr are excluded. Nothing is saved.", AutoSize = true, MaximumSize = new Size(350, 0), ForeColor = SystemColors.GrayText, Font = new Font(Font.FontFamily, 9) });
         Add(layout, Row("Toggle shortcut", shortcut));
         Add(layout, login);
         Add(layout, new Label { Text = "Windows Startup Apps can also control automatic launch.", AutoSize = true, MaximumSize = new Size(350, 0), ForeColor = SystemColors.GrayText, Font = new Font(Font.FontFamily, 9) });
@@ -74,6 +77,7 @@ internal sealed class SettingsForm : Form
         Add(layout, buttons, 12);
         enabled.CheckedChanged += (_, _) => { if (!refreshing) Commit(this.settings with { IsEnabled = enabled.Checked }); };
         clicks.CheckedChanged += (_, _) => { if (!refreshing) Commit(this.settings with { ShowsClicks = clicks.Checked }); };
+        keyboard.CheckedChanged += (_, _) => { if (!refreshing) Commit(this.settings with { ShowsKeyboardActivity = keyboard.Checked }); };
         style.SelectedIndexChanged += (_, _) => { if (!refreshing) Commit(this.settings with { Style = (HaloStyle)style.SelectedIndex }); };
         color.SelectedIndexChanged += (_, _) => { if (!refreshing) Commit(this.settings with { Color = (HaloColor)color.SelectedIndex }); };
         shortcut.SelectedIndexChanged += (_, _) => { if (!refreshing) Commit(this.settings with { Shortcut = (ToggleShortcut)shortcut.SelectedIndex }); };
@@ -108,6 +112,7 @@ internal sealed class SettingsForm : Form
         refreshing = true;
         enabled.Checked = settings.IsEnabled;
         clicks.Checked = settings.ShowsClicks;
+        keyboard.Checked = settings.ShowsKeyboardActivity;
         style.SelectedIndex = (int)settings.Style;
         color.SelectedIndex = (int)settings.Color;
         shortcut.SelectedIndex = (int)settings.Shortcut;

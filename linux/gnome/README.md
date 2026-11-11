@@ -42,6 +42,7 @@ gnome-extensions uninstall cursor-halo@jjs-mm.github.io
 ## Behavior and limits
 
 - Ring or soft disc, five colors, adjustable size/opacity/outline, contrasting secondary-click feedback, and a global toggle shortcut.
+- Keyboard activity display is unavailable in this GNOME extension. Mutter handles application keyboard events before they reach Shell stage signals, so listening there would miss application shortcuts. The extension does not intercept or replace application shortcuts. The native X11 app has an optional shortcuts-only display. See [Mutter's event routing](https://github.com/GNOME/mutter/blob/main/src/core/events.c).
 - Nonreactive compositor actors pass clicks to applications and do not take keyboard focus. The extension disables itself in the lock-screen session mode.
 - Pointer position uses Mutter's cursor notifications. GNOME consumes application button events before Shell stage signals, so click feedback samples button state every 16 ms while the user is active. Sampling stops after one second of idle time and resumes on activity. A press and release entirely between samples can be missed. There is no continuous idle rendering loop.
 - At most eight short-lived click indicators are retained. GNOME's effective animation and Reduced Motion settings select a brief static indicator when motion is reduced or animations are disabled.

@@ -11,12 +11,17 @@ The platform implementations follow this contract, with explicit desktop differe
 | Opacity | 85% | 20–100% |
 | Stroke width | 3 | 1–8 logical points/DIPs |
 | Click feedback | On | On / off |
+| Show keyboard activity | Off | Shortcuts only; macOS, Windows, Linux X11 |
 | Toggle shortcut | Control + Option/Alt + H | Control + Option/Alt + H or C; Control + Shift + H |
 | Launch at login | Off | System-managed, explicitly enabled by the user |
 
 The halo surrounds the pointer hotspot and never replaces the system cursor. A thin dark outline keeps the color visible on light backgrounds. A soft disc has a translucent fill so underlying text remains readable. Right/secondary clicks use a contrasting color. Click feedback stays at the click location while the pointer moves on.
 
 Overlays are transparent, click-through, excluded from task switching where supported, and unable to take keyboard focus. Disabling the halo removes pointer observation and visible feedback. There is no continuous idle rendering loop. Animated feedback has a bounded lifetime and count; the system's reduced-animation preference substitutes a brief static indicator.
+
+Optional keyboard activity shows one shortcut label at a time for 1.5 seconds, centered near the bottom of the usable display containing the pointer. A newer shortcut replaces the previous one; there is no typing history. Ordinary and Shift-only typing and modifier-only presses are excluded. macOS shows Command/Control chords and Option navigation; Option-only text entry is excluded. Windows and X11 show Control/Alt/Super (Windows key) chords, suppressing AltGr text entry. These labels describe the keys pressed, not whether the foreground application handled the shortcut. Pausing highlighting, disabling the setting, or quitting clears the label and stops keyboard observation. Reset appearance preserves the keyboard setting.
+
+Keyboard events and shortcut labels are never logged, saved, or transmitted. macOS permission requests happen only through the explicit Input Monitoring button; denial leaves pointer highlighting usable. Secure input and desktop restrictions take precedence over shortcut display. GNOME Wayland does not offer this option because client keyboard events are not reliably available to the extension.
 
 Settings are local. Invalid, malformed, or nonfinite numeric values must not crash rendering or create unbounded windows. Changing a shortcut must leave a clear, recoverable state if the new combination is unavailable. Startup registration reflects the actual operating-system state, with approval/failure states shown to the user.
 

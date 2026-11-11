@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var settings: SettingsModel
     @ObservedObject var loginItem: LoginItemModel
+    let requestKeyboardPermission: () -> Void
     let quit: () -> Void
 
     private var tint: Color { Color(nsColor: settings.color.nsColor) }
@@ -83,6 +84,17 @@ struct SettingsView: View {
                 Text("A ripple marks each click. Right-clicks use a contrasting color.")
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     .padding(.top, -10)
+                Toggle("Show keyboard activity", isOn: $settings.showsKeyboardActivity)
+                    .toggleStyle(.switch).controlSize(.small).tint(tint)
+                Text("Briefly shows shortcuts such as ⌘C at the bottom of your display. Ordinary typing stays hidden.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, -10)
+                if let error = settings.keyboardMonitoringError {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(error).foregroundStyle(.orange)
+                        Button("Allow Input Monitoring", action: requestKeyboardPermission)
+                    }.font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
+                }
                 HStack {
                     Text("Toggle shortcut").font(.system(size: 12))
                     Spacer()

@@ -6,9 +6,10 @@ internal static class Native
 {
     internal const int WsExLayered = 0x80000, WsExTransparent = 0x20, WsExNoActivate = 0x08000000, WsExToolWindow = 0x80;
     internal const uint SwpNoActivate = 0x10, SwpNoSize = 0x1, SwpNoMove = 0x2, SwpShowWindow = 0x40;
-    internal const int WmHotKey = 0x0312, WmPointerUpdate = 0x8001, WmAction = 0x8002;
+    internal const int WmHotKey = 0x0312, WmPointerUpdate = 0x8001, WmAction = 0x8002, WmKeyboardUpdate = 0x8003;
     internal const uint WmQuit = 0x0012;
     internal const int WhMouseLl = 14;
+    internal const int WhKeyboardLl = 13;
     internal static readonly nint HwndTopmost = new(-1);
     internal delegate nint HookProc(int code, nint wParam, nint lParam);
 
@@ -16,6 +17,7 @@ internal static class Native
     [StructLayout(LayoutKind.Sequential)] internal struct Size { internal int Width, Height; internal Size(int width, int height) { Width = width; Height = height; } }
     [StructLayout(LayoutKind.Sequential, Pack = 1)] internal struct Blend { internal byte Operation, Flags, Alpha, Format; }
     [StructLayout(LayoutKind.Sequential)] internal struct MouseData { internal Point Point; internal uint MouseDataValue, Flags, Time; internal nuint ExtraInfo; }
+    [StructLayout(LayoutKind.Sequential)] internal struct KeyboardData { internal uint VirtualKey, ScanCode, Flags, Time; internal nuint ExtraInfo; }
     [StructLayout(LayoutKind.Sequential)] internal struct Message { internal nint Window; internal uint Id; internal nuint WParam; internal nint LParam; internal uint Time; internal Point Point; internal uint Private; }
 
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool UpdateLayeredWindow(nint hwnd, nint screenDC, ref Point destination, ref Size size, nint sourceDC, ref Point source, uint colorKey, ref Blend blend, uint flags);
@@ -29,6 +31,10 @@ internal static class Native
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool ShowWindow(nint hwnd, int command);
     [DllImport("user32.dll")] internal static extern uint GetDpiForWindow(nint hwnd);
     [DllImport("user32.dll")] internal static extern nint GetForegroundWindow();
+    [DllImport("user32.dll")] internal static extern short GetAsyncKeyState(int key);
+    [DllImport("user32.dll")] internal static extern uint GetWindowThreadProcessId(nint window, out uint process);
+    [DllImport("user32.dll")] internal static extern nint GetKeyboardLayout(uint thread);
+    [DllImport("user32.dll", EntryPoint = "MapVirtualKeyExW")] internal static extern uint MapVirtualKeyEx(uint key, uint mapType, nint layout);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] internal static extern nint GetWindowLongPtr(nint hwnd, int index);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool IsWindow(nint hwnd);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool IsWindowVisible(nint hwnd);

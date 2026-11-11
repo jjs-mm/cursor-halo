@@ -15,6 +15,7 @@ public sealed record HaloSettings
     public double Opacity { get; init; } = .85;
     public double LineWidth { get; init; } = 3;
     public bool ShowsClicks { get; init; } = true;
+    public bool ShowsKeyboardActivity { get; init; }
     public ToggleShortcut Shortcut { get; init; } = ToggleShortcut.ControlAltH;
 
     public HaloSettings Sanitize() => this with
@@ -30,6 +31,7 @@ public sealed record HaloSettings
     public HaloSettings ResetAppearance() => new()
     {
         IsEnabled = IsEnabled,
+        ShowsKeyboardActivity = ShowsKeyboardActivity,
         Shortcut = Shortcut
     };
 

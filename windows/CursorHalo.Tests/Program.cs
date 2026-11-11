@@ -11,8 +11,8 @@ var tests = new (string Name, Action Run)[]
     }),
     ("Reset appearance preserves enabled state and shortcut", () =>
     {
-        var reset = (new HaloSettings { IsEnabled = false, Shortcut = ToggleShortcut.ControlShiftH, Diameter = 100, Color = HaloColor.Pink }).ResetAppearance();
-        Check(!reset.IsEnabled && reset.Shortcut == ToggleShortcut.ControlShiftH, "Reset changed control settings.");
+        var reset = (new HaloSettings { IsEnabled = false, Shortcut = ToggleShortcut.ControlShiftH, ShowsKeyboardActivity = true, Diameter = 100, Color = HaloColor.Pink }).ResetAppearance();
+        Check(!reset.IsEnabled && reset.Shortcut == ToggleShortcut.ControlShiftH && reset.ShowsKeyboardActivity, "Reset changed control settings.");
         Check(reset.Diameter == 56 && reset.Color == HaloColor.Amber, "Reset did not restore appearance.");
     }),
     ("Geometry keeps negative screen coordinates and scales with DPI", () =>
@@ -27,11 +27,40 @@ var tests = new (string Name, Action Run)[]
     {
         var store = new SettingsStore(Path.Combine(directory, "settings.json"));
         Check(store.Load().IsFirstRun, "Missing file was not recognized.");
-        var expected = new HaloSettings { IsEnabled = false, Color = HaloColor.Blue, Style = HaloStyle.Disc, Diameter = 83, Opacity = .42, LineWidth = 6.2, ShowsClicks = false, Shortcut = ToggleShortcut.ControlAltC };
+        var expected = new HaloSettings { IsEnabled = false, Color = HaloColor.Blue, Style = HaloStyle.Disc, Diameter = 83, Opacity = .42, LineWidth = 6.2, ShowsClicks = false, ShowsKeyboardActivity = true, Shortcut = ToggleShortcut.ControlAltC };
         Check(store.Save(new HaloSettings()) == null && store.Save(expected) == null, "Save failed.");
         Check(store.Load() is { Error: null, IsFirstRun: false } loaded && loaded.Settings == expected, "Round trip lost a preference.");
         Check(!Directory.EnumerateFiles(directory, "*.tmp").Any(), "Temporary files were left behind.");
     })),
+    ("Keyboard activity is opt-in for new and existing settings", () => WithDirectory(directory =>
+    {
+        Check(!new HaloSettings().ShowsKeyboardActivity, "New installations unexpectedly observe shortcuts.");
+        var path = Path.Combine(directory, "settings.json");
+        File.WriteAllText(path, "{\"IsEnabled\":true,\"Color\":\"Blue\"}");
+        var loaded = new SettingsStore(path).Load();
+        Check(loaded.Error == null && !loaded.Settings.ShowsKeyboardActivity && loaded.Settings.Color == HaloColor.Blue,
+            "Existing settings did not retain the opt-in default.");
+    })),
+    ("Shortcut display excludes ordinary typing, shift-only typing, AltGr and lone modifiers", () =>
+    {
+        Check(KeyboardShortcutFormatter.Format(0x41, KeyboardModifiers.None) == null, "Plain text was displayed.");
+        Check(KeyboardShortcutFormatter.Format(0x41, KeyboardModifiers.Shift) == null, "Shift-only text was displayed.");
+        Check(KeyboardShortcutFormatter.Format(0x45, KeyboardModifiers.Control | KeyboardModifiers.Alt | KeyboardModifiers.AltGr) == null,
+            "AltGr text was treated as a shortcut.");
+        foreach (uint key in new uint[] { 0x10, 0x11, 0x12, 0x5B, 0x5C, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5 })
+            Check(KeyboardShortcutFormatter.Format(key, KeyboardModifiers.Control) == null, "A lone modifier was displayed.");
+    }),
+    ("Shortcut labels include modifiers and bounded key names", () =>
+    {
+        Check(KeyboardShortcutFormatter.Format(0x43, KeyboardModifiers.Control) == "Ctrl + C", "Copy shortcut is incorrect.");
+        Check(KeyboardShortcutFormatter.Format(0x09, KeyboardModifiers.Alt | KeyboardModifiers.Shift) == "Alt + Shift + Tab", "Navigation chord is incorrect.");
+        Check(KeyboardShortcutFormatter.Format(0x25, KeyboardModifiers.Windows) == "Win + ←", "Window shortcut is incorrect.");
+        Check(KeyboardShortcutFormatter.Format(0x7B, KeyboardModifiers.Control) == "Ctrl + F12", "Function key is incorrect.");
+        Check(KeyboardShortcutFormatter.Format(0xBA, KeyboardModifiers.Control, ";") == "Ctrl + ;", "Layout key was lost.");
+        Check(KeyboardShortcutFormatter.Format(0xFF, KeyboardModifiers.Control) == null, "Unknown key was displayed.");
+        Check(KeyboardShortcutFormatter.Format(0xBA, KeyboardModifiers.Control, "line\nbreak") == null, "Control character was displayed.");
+        Check(KeyboardShortcutFormatter.Format(0xBA, KeyboardModifiers.Control, new string('x', 17)) == null, "Unbounded key name was displayed.");
+    }),
     ("Malformed and oversized settings recover without rewriting source", () => WithDirectory(directory =>
     {
         var path = Path.Combine(directory, "settings.json");

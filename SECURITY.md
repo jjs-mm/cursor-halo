@@ -8,7 +8,7 @@ This is a community-maintained project without a guaranteed response time. The l
 
 - Cursor Halo needs no account or network connection to work and sends no telemetry.
 - It observes pointer movement and mouse clicks to draw feedback. It does not record them or inspect the contents of other apps.
-- Global shortcuts register specific combinations. The app does not collect typed text.
+- The highlight toggle registers a specific shortcut. Optional keyboard activity observes keyboard events only while enabled, filters ordinary typing, and briefly shows the latest shortcut. It never saves, logs, or transmits keyboard events or shortcut labels. macOS requires explicit Input Monitoring permission; secure input suppresses display. The GNOME extension does not offer keyboard activity.
 - Settings and optional login startup are per user. Windows and Linux user installation do not require administrator access. Linux system dependencies are installed by the distribution's package manager.
 - Linux X11 uses the existing desktop connection, without direct access to `/dev/input` or elevated input permissions. GNOME support runs as a Shell extension and follows GNOME's extension enable/disable lifecycle.
 - It does not draw over Windows secure desktops, permission prompts, or the sign-in screen. Do not weaken system protections to change that.

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added optional, shortcuts-only keyboard activity on macOS, Windows, and Linux X11, disabled by default. The latest shortcut briefly appears in a click-through display and pauses with highlighting.
+- Added explicit macOS Input Monitoring setup and documented the GNOME Wayland limitation. Keyboard events are never saved, logged, or transmitted.
+
 ## 0.5.0 — Ubuntu and GNOME compatibility candidate
 
 - Added compatibility paths for GNOME Shell 50 on Ubuntu 26.04 LTS and GNOME Shell 51 on Ubuntu 26.10, while retaining GNOME Shell 46 on Ubuntu 24.04. Publication requires all declared runtime checks to pass.
